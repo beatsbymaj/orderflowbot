@@ -222,3 +222,7 @@ US-equity L1 (NBBO plus prints) maps to an **L1_MBP** venue with `trade_executio
 - X1: https://github.com/IbcAlpha/IBC
 - X2: https://github.com/gnzsnz/ib-gateway-docker
 - X3: https://github.com/IbcAlpha/IBC/releases/latest
+
+## Addendum 2026-10-19: claude.ai IBKR connector
+- The operator connected the "Interactive Brokers (IBKR)" connector on claude.ai (directory description: "Trade, invest, analyze, and manage global markets"). Status: connected at account level, but **not loaded in the Phase 0 research session** because it was connected after that session started, so its tool list, read-only vs trading scope, and paper vs live account could not be inspected yet. UNVERIFIED until a session with it loaded lists its tools.
+- Role in FlowForge: **operator tooling only** (read-only checks of account type, PDT/intraday-margin regime, market-data subscriptions, positions for reconciliation spot-checks). It is not the bot's execution path: the bot trades through the Nautilus IB adapter and IB Gateway, where our risk layers apply. The connector advertises trading, so Claude sessions must never place, modify or cancel orders through it without the operator's explicit instruction for that specific order.
