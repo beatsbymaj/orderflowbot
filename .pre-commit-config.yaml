@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.1
+    hooks:
+      - id: ruff
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: no-risk-bypass
+        name: Nautilus RiskEngine bypass stays off
+        entry: python scripts/check_no_risk_bypass.py src
+        language: system
+        pass_filenames: false

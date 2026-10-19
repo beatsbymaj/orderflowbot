@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flowforge"
+version = "0.1.0"
+description = "Order-flow US-equities trading system on NautilusTrader and Interactive Brokers"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    # Exact pin: see docs/decisions/ADR-0006. Upgrades are deliberate commits.
+    "nautilus_trader==2.0.0rc7",
+    "pydantic>=2.9,<3",
+    "pyyaml>=6,<7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.8", "pre-commit>=4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["flowforge"]
+branch = true
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
