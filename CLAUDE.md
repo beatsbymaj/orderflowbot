@@ -22,6 +22,9 @@ Phase 0 (research) complete, awaiting operator go-ahead. No trading code exists 
 - Jev: pin `jev-1.13.0`; 750 ms deadline, timeout = NO TRADE; numbers computed in code.
 - PDT replaced 2026-06-04, but brokers may keep it per account until 2027-10-20; check the IBKR account's regime. T+1. Track wash sales across accounts.
 
+## Order flow reference
+Trader Dale's *Order Flow Trading Setups* is the project's order-flow reference (summary: /mnt/project-files/orderflow/reference/order-flow-setups-book.md). Its examples are futures/forex and untested; every setup is a hypothesis to validate walk-forward on US equities. All its setups except DOM reading are computable from trades + the quote at trade time.
+
 ## Architecture
 One Nautilus TradingNode: data clients, feature indicators/actors, strategies, Jev gate actor, FlowForge RiskGuard, IB execution client. Separate processes: IB Gateway, watchdog (independent cancel/flatten), post-trade, FastAPI API, React dashboard. Node events → Redis Streams; journal in Postgres + TimescaleDB; ticks in the Nautilus Parquet catalog. Docker Compose; macOS + Linux VPS.
 
