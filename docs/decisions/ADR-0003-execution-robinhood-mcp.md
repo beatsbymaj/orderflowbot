@@ -1,0 +1,6 @@
+# ADR-0003: Robinhood MCP execution, fail-closed discovery, approvals inside FlowForge
+
+- Status: Superseded by ADR-0008 (2026-10-19, operator chose Interactive Brokers)
+- Context: Robinhood documents the Trading MCP endpoint, tool names and order types (market, limit, stop-limit, stop-market) but not schemas, OAuth details, rate limits or latency. There are no broker-side spend caps, approvals are off by default for MCP accounts, and there is no "approve" tool. The token can read all of the user's Robinhood accounts. See docs/research/01-robinhood-trading-mcp.md.
+- Decision: RobinhoodMCPAdapter uses the Python `mcp` SDK over streamable HTTP with OAuth refresh. At startup it lists tools, hashes each expected schema and compares to pinned hashes in git; any mismatch or missing tool disables trading. Confirmation mode is implemented in FlowForge's approvals queue before `place_equity_order` is called. `PENDING_APPROVAL` is a state in the order machine. Entries carry a broker-side stop-market as a crash backstop.
+- Consequences: Live trading depends on headless OAuth refresh working, which is unverified. If it doesn't, the options are (a) human re-auth each session, (b) a different broker for live, or (c) stopping at paper.
