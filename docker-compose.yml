@@ -1,0 +1,67 @@
+# FlowForge local stack. Phase 1: IB Gateway (paper, read-only API), Redis, TimescaleDB,
+# and the read-only IBKR paper check. Later phases add the trading node, watchdog, API and
+# dashboard. Copy .env.example to .env first.
+
+services:
+  ib-gateway:
+    # Pinned: "stable" line, Gateway 10.50.1f with IBC 3.24.2 (docs/research/08, B7-B8).
+    image: ghcr.io/gnzsnz/ib-gateway:10.50.1f
+    restart: always
+    environment:
+      TWS_USERID: ${TWS_USERID}
+      TWS_PASSWORD: ${TWS_PASSWORD}
+      TRADING_MODE: paper            # live is a separate, operator-approved change
+      READ_ONLY_API: "yes"           # Phase 1 never needs to place orders
+      TWOFA_TIMEOUT_ACTION: restart
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:?set VNC_SERVER_PASSWORD in .env}  # VNC only starts when set
+      AUTO_RESTART_TIME: "11:59 PM"
+      TZ: America/New_York
+    ports:
+      - "127.0.0.1:4002:4004"        # paper API, localhost only
+      - "127.0.0.1:5900:5900"        # VNC for the weekly manual login, localhost only
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/4004'"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8.6.7
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  timescaledb:
+    image: timescale/timescaledb:2.30.2-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowforge
+      POSTGRES_DB: flowforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowforge"]
+      interval: 10s
+
+  ib-paper-check:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["check"]              # run on demand: docker compose --profile check run --rm ib-paper-check
+    environment:
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      IB_CLIENT_ID: "91"
+      IB_TRADING_MODE: paper
+      IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
+    volumes: ["./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    command: ["python", "-m", "flowforge.ops.ib_paper_check", "--seconds", "60"]
+
+volumes:
+  redis-data:
+  pg-data:

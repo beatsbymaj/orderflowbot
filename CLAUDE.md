@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phase 0 (research) complete, awaiting operator go-ahead. No trading code exists yet. See ROADMAP.md and DECISIONS.md.
+Phase 1 (foundations) in progress since 2026-10-19. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits. No strategy or order-placing code exists yet. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -31,8 +31,18 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 ## Layout
 - docs/research/ — one file per topic, sources dated
 - docs/decisions/ — ADRs
+- config/risk_limits.yaml — operator-owned limits, read-only at runtime
+- src/flowforge/ — Python package (config loader, Nautilus config, ops tools)
 - DECISIONS.md — Phase 0 decision summary
 - ROADMAP.md — phases and promotion gates
 
 ## Commands
-None yet (no code).
+- Setup: `python3.13 -m venv .venv && .venv/bin/pip install -e ".[dev]" && .venv/bin/pre-commit install`
+- Tests: `pytest --cov` (risk limits loader must stay at 100%)
+- Lint: `ruff check . && ruff format --check .`
+- Bypass guard: `python scripts/check_no_risk_bypass.py src`
+- Local stack: `cp .env.example .env`, fill it, `docker compose up -d ib-gateway redis timescaledb`
+- Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
+
+## Agents
+Subagent definitions live in .claude/agents/ (11 roles). The orchestrator owns CLAUDE.md, ROADMAP.md, DECISIONS.md and docs/decisions/.
