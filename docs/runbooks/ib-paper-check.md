@@ -27,6 +27,12 @@ VNC_SERVER_PASSWORD=pick-anything
 POSTGRES_PASSWORD=pick-anything
 ```
 
+### On Windows
+- Install **Docker Desktop for Windows** (it uses WSL 2; accept that during setup and restart if asked), **Git for Windows**, and a VNC viewer such as **TigerVNC** or **RealVNC Viewer**.
+- Use **PowerShell**. The commands are the same except copying the env file: `Copy-Item .env.example .env`, then `notepad .env` to edit it.
+- Start Docker Desktop and wait until it says it is running before any `docker` command.
+- The repo's `.gitattributes` keeps files in Unix line endings so the containers read them correctly.
+
 ## 3. Start IB Gateway and log in
 ```bash
 docker compose up -d ib-gateway
