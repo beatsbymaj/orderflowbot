@@ -42,7 +42,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Lint: `ruff check . && ruff format --check .`
 - Bypass guard: `python scripts/check_no_risk_bypass.py src`
 - Local stack: `cp .env.example .env`, fill it, `docker compose up -d ib-gateway redis timescaledb`
-- Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings)
+- Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents
 Subagent definitions live in .claude/agents/ (11 roles). The orchestrator owns CLAUDE.md, ROADMAP.md, DECISIONS.md and docs/decisions/.

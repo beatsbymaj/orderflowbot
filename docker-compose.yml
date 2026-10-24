@@ -13,6 +13,7 @@ services:
       TRADING_MODE: paper            # live is a separate, operator-approved change
       READ_ONLY_API: "yes"           # Phase 1 never needs to place orders
       TWOFA_TIMEOUT_ACTION: restart
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:?set VNC_SERVER_PASSWORD in .env}  # VNC only starts when set
       AUTO_RESTART_TIME: "11:59 PM"
       TZ: America/New_York
     ports:
