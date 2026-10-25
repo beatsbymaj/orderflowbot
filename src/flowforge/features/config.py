@@ -36,16 +36,26 @@ class FeatureConfig:
     # aggressive volume <= exhaustion_fraction of the bar's average row.
     extreme_lookback: int = 6
     exhaustion_fraction: float = 0.1
-    # Trades filter (book): single prints at or above this notional. Tune to ~5-10 a day.
+    # Trades filter (book): single prints big enough to give ~5-10 a day. The threshold is the
+    # notional of the prior session's Nth-largest print (N = large_prints_per_day), never below
+    # the floor (`large_print_usd`, or the per-symbol value), which alone applies with no prior day.
+    large_prints_per_day: int = 10
     large_print_usd: float = 2_000_000.0
     large_print_usd_by_symbol: dict[str, float] = field(default_factory=dict)
     # Sweep: ISO prints on one side, each within `sweep_gap_ms` of the last, on >= 2 venues.
+    # ISO orders are everyday flow in US stocks (thousands of 2-venue sweeps a day in NVDA), so
+    # only sweeps at least as big as the prior session's Nth-largest (N = sweeps_per_day) count,
+    # never below `sweep_min_usd`.
     sweep_gap_ms: int = 5
     sweep_min_venues: int = 2
     sweep_min_shares: int = 1_000
+    sweeps_per_day: int = 20
+    sweep_min_usd: float = 250_000.0
     # VPIN (Easley, Lopez de Prado, O'Hara 2012): volume buckets of 1/buckets_per_day of the
     # prior session's volume (or the fallback when it isn't known), averaged over `window`.
-    vpin_buckets_per_day: int = 50
+    # The paper uses 50 buckets a day and a 50-bucket window carried across days; each day here
+    # starts fresh, so buckets are smaller (200 a day) and the window covers about a quarter day.
+    vpin_buckets_per_day: int = 200
     vpin_window: int = 50
     vpin_bucket_fallback: int = 200_000
     # Context levels.

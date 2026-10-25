@@ -121,6 +121,10 @@ class SymbolEngine:
         )
         bucket = prior.volume // self.cfg.vpin_buckets_per_day if prior else self.cfg.vpin_bucket_fallback
         self.vpin = Vpin(bucket, self.cfg.vpin_window)
+        adaptive = prior.large_print_usd if prior and prior.large_print_usd else 0.0
+        self.large_print_u = round(max(self.cfg.large_print_for(self.symbol), adaptive) * USD)
+        adaptive = prior.sweep_usd if prior and prior.sweep_usd else 0.0
+        self.sweep_min_u = round(max(self.cfg.sweep_min_usd, adaptive) * USD)
         self.classifier = Classifier()  # yesterday's NBBO and last price don't carry over
         self.stats = Counter()
         self.unknown = Counter()
@@ -274,7 +278,12 @@ class SymbolEngine:
 
     def _end_sweep(self) -> None:
         sw, self.sweep = self.sweep, None
-        if sw is None or len(sw.venues) < self.cfg.sweep_min_venues or sw.shares < self.cfg.sweep_min_shares:
+        if (
+            sw is None
+            or len(sw.venues) < self.cfg.sweep_min_venues
+            or sw.shares < self.cfg.sweep_min_shares
+            or sw.notional < self.sweep_min_u
+        ):
             return
         self.stats["sweeps"] += 1
         for bar in self.bars.values():

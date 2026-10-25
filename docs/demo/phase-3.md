@@ -21,13 +21,13 @@ What exists (`src/flowforge/features/`, ADR-0012):
 | Absorption | bar | inferred | Bid and Ask both ≥ 3× average at one row, range ≤ median of last 20 bars |
 | Exhaustion | bar | inferred | New 6-bar high with Ask at the top row ≤ 10% of the average row (mirror for lows). Not from the book |
 | Delta / CVD divergence | bar | inferred | Up bar with negative delta (and mirror); new high with CVD below its recent high (and mirror) |
-| Large prints | event | measured | Single market-priced print ≥ $2M (tune to 5–10 a day) |
-| Sweeps | event | measured + inferred | ISO (F) prints, one side, ≤ 5 ms apart, ≥ 2 venues, ≥ 1,000 sh |
+| Large prints | event | measured | Single market-priced print ≥ the prior day's 10th-largest print (floor $2M), so ~5–10 a day |
+| Sweeps | event | measured + inferred | ISO (F) prints, one side, ≤ 5 ms apart, ≥ 2 venues, notional ≥ the prior day's 20th-largest ISO cluster (floor $250k) |
 | Off-exchange share | bar | measured | Volume on venue D (FINRA TRF/ADF) |
 | ISO and odd-lot share | bar | measured | Volume with F / I |
 | Tape speed | bar | measured | Trades/s, shares/s, busiest second, vs the last 20 bars |
 | NBBO dynamics | bar | measured | Updates, mid ups/downs and change, time-weighted spread ($ and bps), size imbalance, time locked/crossed/missing |
-| VPIN | bar | inferred | 50 buckets of 1/50 of the prior day's volume |
+| VPIN | bar | inferred | Buckets of 1/200 of the prior day's volume, 50-bucket window (about a quarter day), restarted each day |
 | Context | bar | measured | VWAP ± σ, session POC/VAH/VAL (70%), opening range (30 min), prior day H/L/C, session H/L |
 | Levels | bar | inferred | Stacked-imbalance, absorption, multiple-node, unfinished and large-print zones from 5/30-min bars, with bars-away and touch counts |
 
@@ -36,7 +36,8 @@ No depth-of-book features: the data has none (TotalView not wired yet), and none
 ## Results
 - Offline (cloud, made-up ticks): replay, backtest and live paths identical; 144 tests pass, 97% coverage.
 - **Exit gate on real ticks (operator's PC, 2026-10-25):** SPY 2026-10-23, whole session, 3,795,698 ticks (488,347 trades after 6 cancels, 3,307,351 quotes): replay, Nautilus backtest and live client all **IDENTICAL**, 1,932 records each, hash `75e5475936404de2`. Times 226 s / 233 s / 288 s; live client sent = received for every trade and quote.
-- Features for all 25 stock-days: _summary to add when the run finishes._
+- **All 25 stock-days (first settings), 94 min on the PC, no errors:** late events 0, gap bars 0, unknown condition codes none. Quote rule 71–82% of trades, tick test 16–24% (mostly midpoint prints), no side 2–6%; NBBO locked/crossed at trade time 0.1–2%. Off-exchange (venue D) 38–55% of volume, in line with the market's TRF share, which supports the D = TRF reading. Per 5-min bar day (79 bars): absorption 2–15, stacked imbalances 0–9, big cells 1–8, exhaustion ~14, CVD divergence 13–21.
+- What that run showed and what changed (2026-10-25): the fixed $2M large-print filter gave 24–392 a day (book target 5–10) → threshold now adapts to the prior day's 10th-largest print ($3.7–11.4M on these days). 2-venue ISO sweeps were everyday flow (96–3,104 a day) → now sized by the prior day's 20th-largest ISO cluster. VPIN stayed empty on 15 of 25 days because a day rarely filled the 50-bucket window → buckets are 1/200 of the prior day's volume. These changes need the 25-day run again to confirm the new counts.
 
 ## Known risks
 - Thresholds are guesses until Phase 5 walk-forward tests.

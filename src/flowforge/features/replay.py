@@ -100,8 +100,10 @@ def _rfc(text: str) -> str:
     return text if text.endswith("Z") or text[-6] in "+-" else text + "Z"
 
 
-def prior_day(ticks: Path, symbol: str, day: date) -> PriorDay | None:
-    """High, low, close and volume of the last downloaded session before `day`."""
+def prior_day(ticks: Path, symbol: str, day: date, config: FeatureConfig | None = None) -> PriorDay | None:
+    """High, low, close and volume of the last downloaded session before `day`, plus the
+    notionals that set today's large-print and sweep thresholds (FeatureConfig)."""
+    config = config or FeatureConfig()
     folder = ticks / "raw" / symbol
     days = (
         sorted(d.name for d in folder.iterdir() if d.is_dir() and d.name < day.isoformat())
@@ -117,7 +119,34 @@ def prior_day(ticks: Path, symbol: str, day: date) -> PriorDay | None:
     official = [t for t in trades if "M" in t.conditions]  # official close print, if any
     close = official[-1].price if official else priced[-1].price
     volume = sum(t.size for t in trades if cond.counts_volume(t.conditions))
-    return PriorDay(max(t.price for t in priced), min(t.price for t in priced), close, volume)
+    notionals = sorted((t.price * t.size for t in priced if not cond.is_auction(t.conditions)), reverse=True)
+    n = config.large_prints_per_day
+    big = round(notionals[n - 1], 2) if len(notionals) >= n else None
+    sweeps = iso_cluster_notionals(priced, config)
+    n = config.sweeps_per_day
+    sweep = round(sweeps[n - 1], 2) if len(sweeps) >= n else None
+    return PriorDay(max(t.price for t in priced), min(t.price for t in priced), close, volume, big, sweep)
+
+
+def iso_cluster_notionals(trades: list[Trade], config: FeatureConfig) -> list[float]:
+    """Notionals of ISO clusters (same gap and venue rules as the engine's sweeps, but without
+    the aggressor side, which needs quotes), largest first. Only used to size a threshold."""
+    gap = config.sweep_gap_ms * 1_000_000
+    out: list[float] = []
+    last, notional, venues = None, 0.0, set()
+    for t in trades:
+        if cond.ISO not in t.conditions:
+            continue
+        if last is not None and t.ts - last > gap:
+            if len(venues) >= config.sweep_min_venues:
+                out.append(notional)
+            notional, venues = 0.0, set()
+        last = t.ts
+        notional += t.price * t.size
+        venues.add(t.exchange)
+    if len(venues) >= config.sweep_min_venues:
+        out.append(notional)
+    return sorted(out, reverse=True)
 
 
 def iter_ticks(
@@ -141,7 +170,7 @@ def merged(quotes: list, trades: list, lookup: ConditionsLookup) -> Iterator[tup
 
 
 def _seed(engine: FeatureEngine, ticks: Path, d: DayData, config: FeatureConfig) -> None:
-    prior = prior_day(ticks, d.symbol, d.day)
+    prior = prior_day(ticks, d.symbol, d.day, config)
     if prior is not None:
         engine.seed_prior_day(d.symbol, d.day.isoformat(), prior)
     for a, b in d.gaps:

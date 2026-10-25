@@ -113,7 +113,7 @@ def test_two_days_reset_session_state(sample):
     out = run_engine(ordered(*sample) + ordered(*day2), setup=setup)
     stats = [r for r in out if r["type"] == "day_stats"]
     assert [s["day"] for s in stats] == ["2026-10-23", "2026-10-26"]
-    assert stats[1]["vpin_bucket"] == 100_000 and stats[0]["vpin_bucket"] == 200_000
+    assert stats[1]["vpin_bucket"] == 25_000 and stats[0]["vpin_bucket"] == 200_000
     day2_bars = [r for r in out if r["type"] == "bar" and r["start"].startswith("2026-10-26")]
     assert day2_bars[0]["context"]["prior_day"] == {"high": 251.0, "low": 249.0, "close": 250.0}
     first_cvd = next(b for b in day2_bars if b["tf"] == 60 and b["trades"])
@@ -143,7 +143,7 @@ def test_replay_reads_catalog_and_raw_conditions(ticks_dir, sample):
     out: list[dict] = []
     counts = replay.replay_day(ticks_dir, "AAPL", DAY, FeatureConfig(), out.append, minutes=10)
     assert counts["trades"] > 0 and out[-1]["type"] == "day_stats"
-    assert out[-1]["trades"] == counts["trades"] and out[-1]["vpin_bucket"] == prior.volume // 50
+    assert out[-1]["trades"] == counts["trades"] and out[-1]["vpin_bucket"] == prior.volume // 200
     assert "unknown_conditions" in out[-1]
 
 
@@ -195,3 +195,40 @@ def test_compare_reports_the_first_difference():
     r["minutes"], r["symbol"], r["day"], r["events"] = None, "SPY", "2026-10-23", 5
     r["seconds"] = {"replay": 1, "live": 2, "backtest": 3}
     assert "DIFFERENT" in parity.describe(r) and "First difference" in parity.describe(r)
+
+
+def test_thresholds_adapt_to_the_prior_day(sample):
+    """The prior day's 10th-largest print and 20th-largest ISO cluster set today's filters."""
+    from flowforge.data.ticks import Trade
+
+    cfg = FeatureConfig(sweeps_per_day=2, sweep_gap_ms=5)
+    iso = [
+        Trade(0, 10.0, 100, "Q", ("F",), 1, "C"),
+        Trade(1_000_000, 10.0, 100, "P", ("F",), 2, "C"),  # cluster 1: $2,000, 2 venues
+        Trade(50_000_000, 10.0, 500, "Q", ("F",), 3, "C"),  # single venue: not a sweep
+        Trade(90_000_000, 10.0, 300, "Q", ("F", "I"), 4, "C"),
+        Trade(91_000_000, 10.0, 300, "K", ("F",), 5, "C"),  # cluster 2: $6,000
+        Trade(92_000_000, 10.0, 999, "K", (" ",), 6, "C"),  # not ISO: ignored
+    ]
+    assert replay.iso_cluster_notionals(iso, cfg) == [6000.0, 2000.0]
+
+    events = ordered(*sample)
+    strict = PriorDay(251.0, 249.0, 250.0, 5_000_000, large_print_usd=1e9, sweep_usd=1e9)
+    out = run_engine(events, setup=lambda e: e.seed_prior_day("AAPL", "2026-10-23", strict))
+    stats = next(r for r in out if r["type"] == "day_stats")
+    assert "large_prints" not in stats and "sweeps" not in stats
+    loose = PriorDay(251.0, 249.0, 250.0, 5_000_000, large_print_usd=1.0, sweep_usd=1.0)
+    out = run_engine(events, setup=lambda e: e.seed_prior_day("AAPL", "2026-10-23", loose))
+    stats = next(r for r in out if r["type"] == "day_stats")
+    planted = sum(1 for t in sample[0] if t.size == 15_000)
+    assert stats["large_prints"] == planted and stats["sweeps"] > 0  # floors still apply
+
+
+def test_prior_day_sets_threshold_fields(ticks_dir):
+    prior = replay.prior_day(ticks_dir, "AAPL", DAY, FeatureConfig(large_prints_per_day=3, sweeps_per_day=1))
+    assert prior.large_print_usd is not None and prior.large_print_usd >= 15_000 * 249
+    assert prior.sweep_usd is None or prior.sweep_usd > 0
+    assert (
+        replay.prior_day(ticks_dir, "AAPL", DAY, FeatureConfig(large_prints_per_day=10**9)).large_print_usd
+        is None
+    )

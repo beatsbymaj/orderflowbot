@@ -22,6 +22,8 @@ class PriorDay:
     low: float
     close: float
     volume: int
+    large_print_usd: float | None = None  # Nth-largest print notional (trades filter)
+    sweep_usd: float | None = None  # Nth-largest ISO sweep notional
 
 
 @dataclass
