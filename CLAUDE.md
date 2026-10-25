@@ -45,6 +45,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Practice backtest (offline, no orders): `docker compose --profile backtest run --rm bars-download`, then `... run --rm backtest` (docs/runbooks/backtest.md)
 - Tick download (past trades + NBBO, gap check, catalog): `docker compose --profile data run --rm ticks-download` (docs/runbooks/tick-download.md)
 - Live stream watch (no trading): `docker compose --profile data run --rm live-watch` (docs/runbooks/live-stream.md)
+- Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents
