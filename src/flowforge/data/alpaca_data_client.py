@@ -1,7 +1,8 @@
 """Nautilus market data client for Alpaca's real-time stock stream.
 
 Turns stream records into Nautilus data:
-- trades -> TradeTick (aggressor NO_AGGRESSOR; Phase 3 classifies), canceled ones dropped
+- trades -> TradeTick (aggressor NO_AGGRESSOR; Phase 3 classifies), canceled ones dropped;
+  also TapeTrade custom data (venue + conditions) for actors that subscribe to it (data/tape.py)
 - quotes -> QuoteTick (NBBO)
 - trading statuses -> InstrumentStatus (halt, pause, resume, short-sale restriction)
 Corrections, cancels, LULD bands, clock warnings and outages have no Nautilus type yet, so
@@ -42,6 +43,7 @@ from flowforge.data.alpaca_stream import (
     SymbolQuote,
     SymbolTrade,
 )
+from flowforge.data.tape import TAPE_TRADE, tape_data
 from flowforge.data.ticks import NS, VENUE, format_ts_ns, instrument_id, to_quote_tick, to_trade_tick
 
 # Alpaca trading status codes (CTA: tapes A/B; UTP: tapes C/O) to Nautilus actions.
@@ -107,6 +109,8 @@ class AlpacaDataClient(MarketDataClient):
             stream._cb = callbacks  # noqa: SLF001 - injected stream (tests) reports to this client
         self._task: asyncio.Task | None = None
         self.counts: dict[str, int] = {}
+        self._tape_symbols: set[str] = set()
+        self._tick_symbols: set[str] = set()
         self.outages: list[tuple[int, int]] = []
         self.fatal: str | None = None
 
@@ -135,7 +139,23 @@ class AlpacaDataClient(MarketDataClient):
 
     # -- subscriptions -----------------------------------------------------------------
     async def _subscribe_trades(self, command: Any) -> None:
-        await self.stream.subscribe("trades", command.instrument_id.symbol.value)
+        symbol = command.instrument_id.symbol.value
+        self._tick_symbols.add(symbol)
+        await self.stream.subscribe("trades", symbol)
+
+    async def _subscribe(self, command: Any) -> None:
+        """Custom data: only TapeTrade, which rides on the stream's trades channel."""
+        symbol = _tape_symbol(command)
+        if symbol is not None:
+            self._tape_symbols.add(symbol)
+            await self.stream.subscribe("trades", symbol)
+
+    async def _unsubscribe(self, command: Any) -> None:
+        symbol = _tape_symbol(command)
+        if symbol is not None:
+            self._tape_symbols.discard(symbol)
+            if symbol not in self._tick_symbols:
+                await self.stream.unsubscribe("trades", symbol)
 
     async def _subscribe_quotes(self, command: Any) -> None:
         await self.stream.subscribe("quotes", command.instrument_id.symbol.value)
@@ -146,7 +166,10 @@ class AlpacaDataClient(MarketDataClient):
         await self.stream.subscribe("lulds", symbol)
 
     async def _unsubscribe_trades(self, command: Any) -> None:
-        await self.stream.unsubscribe("trades", command.instrument_id.symbol.value)
+        symbol = command.instrument_id.symbol.value
+        self._tick_symbols.discard(symbol)
+        if symbol not in self._tape_symbols:
+            await self.stream.unsubscribe("trades", symbol)
 
     async def _unsubscribe_quotes(self, command: Any) -> None:
         await self.stream.unsubscribe("quotes", command.instrument_id.symbol.value)
@@ -165,6 +188,8 @@ class AlpacaDataClient(MarketDataClient):
             self._count("trades")
             if not record.trade.dropped:
                 self._handle_data(to_trade_tick(record.trade, instrument_id(record.symbol), recv_ts))
+                if record.symbol in self._tape_symbols:
+                    self._handle_data(tape_data(record.symbol, record.trade, recv_ts))
         elif isinstance(record, SymbolQuote):
             self._count("quotes")
             self._handle_data(to_quote_tick(record.quote, instrument_id(record.symbol), recv_ts))
@@ -209,6 +234,13 @@ class AlpacaDataClient(MarketDataClient):
                 self._journal.write("backfill", symbol=symbol, **result)
             except Exception as exc:  # report, don't crash the node
                 self._journal.write("backfill_failed", symbol=symbol, error=f"{type(exc).__name__}: {exc}")
+
+
+def _tape_symbol(command: Any) -> str | None:
+    data_type = command.data_type
+    if data_type.type_name != TAPE_TRADE:
+        return None
+    return (data_type.metadata or {}).get("symbol")
 
 
 def _instrument_status(record: Status, action: MarketStatusAction, recv_ts: int) -> InstrumentStatus:

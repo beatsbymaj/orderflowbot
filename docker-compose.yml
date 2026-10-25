@@ -100,6 +100,20 @@ services:
     volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
     command: ["python", "-m", "flowforge.backtest.run", "--data", "data/bars"]
 
+  # Phase 3: order-flow features from downloaded ticks, offline (docs/runbooks/features.md).
+  features:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["features"]
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.features.replay", "--ticks", "data/ticks", "--out", "data/features"]
+
+  # Phase 3 exit gate: same ticks through replay, backtest and the live client must match.
+  features-parity:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["features"]
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.features.parity", "--ticks", "data/ticks", "--symbol", "SPY", "--day", "2026-10-23"]
+
 volumes:
   redis-data:
   pg-data:
