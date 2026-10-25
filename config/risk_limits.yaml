@@ -1,0 +1,52 @@
+# FlowForge risk limits.
+#
+# Only the human operator edits this file, through a git commit. It is read once at
+# startup, hashed, and never written at runtime. No LLM, Jev, ML or learning process may
+# change or bypass these values. Percentages are of agentic account equity unless noted.
+#
+# Values marked "spec default" come from the operator's mission brief. Values marked
+# "Claude default" were not specified there and were picked conservatively; change them
+# here if you want something else.
+
+version: 1
+
+per_trade:
+  max_risk_pct: 0.5               # spec default: loss at the stop, as % of equity
+  max_position_notional_pct: 10   # spec default
+  require_stop: true              # spec default: every entry has a predefined stop
+  max_slippage_bps: 10            # Claude default: marketable-limit band vs. NBBO
+  max_price_deviation_bps: 50     # Claude default: reject if limit is this far from last NBBO mid
+  max_pct_of_recent_volume: 5     # Claude default: order size vs. average 1-minute volume
+
+portfolio:
+  max_concurrent_positions: 3     # spec default
+  max_gross_exposure_pct: 100     # Claude default: no leverage
+  long_only: true                 # operator decision 2026-10-19
+
+loss:
+  max_daily_loss_pct: 2           # spec default: flatten, halt for the day, notify
+  max_weekly_drawdown_pct: 5      # spec default: halt until manually re-enabled
+
+trading:
+  max_trades_per_day: 10          # Claude default (spec: configurable)
+  max_order_submit_rate: "5/00:00:01"   # Claude default, passed to Nautilus RiskEngine
+  pdt_regime: legacy_pdt          # legacy_pdt | intraday_margin. Fail-safe until the IBKR account's regime is confirmed
+  legacy_pdt_max_day_trades: 3    # day trades per 5 business days when equity < $25k under legacy_pdt
+
+universe:
+  min_price: 5.0                  # Claude default: no penny stocks
+  min_avg_daily_dollar_volume: 20000000   # Claude default
+  max_spread_bps: 10              # Claude default
+  allow_leveraged_etfs: false     # spec default
+  allow_inverse_etfs: false       # spec default
+
+session:
+  regular_hours_only: true        # research decision D9
+  no_entry_first_minutes: 5       # Claude default
+  no_entry_last_minutes: 15       # Claude default
+  flatten_at_close: true          # Claude default
+  max_data_staleness_ms: 2000     # Claude default: no new entries on older quotes
+
+kill_switch:
+  file_flag: /var/run/flowforge/KILL   # creating this file triggers the kill switch
+  flatten_on_kill: true

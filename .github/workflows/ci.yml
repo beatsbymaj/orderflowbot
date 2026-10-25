@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.13"}
+      - run: pip install -e ".[dev]"
+      - run: ruff check . && ruff format --check .
+      - run: python scripts/check_no_risk_bypass.py src
+      - name: Tests (risk limits loader must stay at 100% coverage)
+        run: |
+          pytest --cov --cov-report=term-missing
+          coverage report --include="src/flowforge/config/*" --fail-under=100
+          coverage report --fail-under=90

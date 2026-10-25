@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: flowforge
+Version: 0.1.0
+Summary: Order-flow US-equities trading system on NautilusTrader and Interactive Brokers
+Requires-Python: <3.14,>=3.13
+Requires-Dist: nautilus_trader==2.0.0rc7
+Requires-Dist: pydantic<3,>=2.9
+Requires-Dist: pyyaml<7,>=6
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: pytest-cov>=5; extra == "dev"
+Requires-Dist: ruff>=0.8; extra == "dev"
+Requires-Dist: pre-commit>=4; extra == "dev"
