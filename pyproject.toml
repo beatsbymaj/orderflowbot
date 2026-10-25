@@ -12,6 +12,7 @@ dependencies = [
     "nautilus_trader==2.0.0rc7",
     "pydantic>=2.9,<3",
     "pyyaml>=6,<7",
+    "tzdata>=2024.1",  # zoneinfo on Windows, which has no system time zone database
 ]
 
 [project.optional-dependencies]
