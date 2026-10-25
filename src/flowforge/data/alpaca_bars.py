@@ -42,6 +42,10 @@ CSV_HEADER = ["ts_utc", "open", "high", "low", "close", "volume"]
 class AlpacaError(RuntimeError):
     """Raised when the data API refuses a request or returns something unexpected."""
 
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status  # HTTP status code, when the API returned one
+
 
 @dataclass(frozen=True)
 class AlpacaKeys:
@@ -71,7 +75,7 @@ def _http_get_json(url: str, headers: dict[str, str]) -> dict:
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
         body = exc.read().decode(errors="replace")[:300]
-        raise AlpacaError(f"Alpaca data API returned HTTP {exc.code}: {body}") from None
+        raise AlpacaError(f"Alpaca data API returned HTTP {exc.code}: {body}", exc.code) from None
 
 
 def iter_bars(
@@ -82,6 +86,7 @@ def iter_bars(
     feed: str = "sip",
     fetch: Fetch = _http_get_json,
     sleep: Callable[[float], None] = time.sleep,
+    adjustment: str = "split",
 ) -> Iterator[dict]:
     """Yield raw Alpaca bar dicts for one symbol, oldest first, following page tokens."""
     headers = {"APCA-API-KEY-ID": keys.key_id, "APCA-API-SECRET-KEY": keys.secret}
@@ -91,7 +96,7 @@ def iter_bars(
         "start": f"{start.isoformat()}T00:00:00Z",
         "end": f"{end.isoformat()}T00:00:00Z",
         "limit": str(PAGE_LIMIT),
-        "adjustment": "split",
+        "adjustment": adjustment,
         "feed": feed,
         "sort": "asc",
     }

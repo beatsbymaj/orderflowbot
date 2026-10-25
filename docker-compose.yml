@@ -74,6 +74,26 @@ services:
     volumes: ["./data:/app/data"]
     command: ["python", "-m", "flowforge.data.alpaca_bars", "--out", "data/bars"]
 
+  # Phase 2: past trades + NBBO quotes into the Parquet catalog (docs/runbooks/tick-download.md).
+  ticks-download:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["data"]
+    environment:
+      ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
+      ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
+    volumes: ["./data:/app/data"]
+    command: ["python", "-m", "flowforge.data.alpaca_ticks", "--out", "data/ticks"]
+
+  # Phase 2: watch Alpaca's live stream through the node, no trading (docs/runbooks/live-stream.md).
+  live-watch:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["data"]
+    environment:
+      ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
+      ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.data.alpaca_live", "--feed", "test", "--symbols", "FAKEPACA", "--seconds", "60"]
+
   backtest:
     build: {context: ., dockerfile: docker/node.Dockerfile}
     profiles: ["backtest"]
