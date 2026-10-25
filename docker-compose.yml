@@ -64,6 +64,22 @@ services:
       ib-gateway: {condition: service_healthy}
     command: ["python", "-m", "flowforge.ops.ib_paper_check", "--seconds", "60"]
 
+  # Backtest: offline, no broker connection. Step by step in docs/runbooks/backtest.md.
+  bars-download:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["backtest"]
+    environment:
+      ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
+      ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
+    volumes: ["./data:/app/data"]
+    command: ["python", "-m", "flowforge.data.alpaca_bars", "--out", "data/bars"]
+
+  backtest:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["backtest"]
+    volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.backtest.run", "--data", "data/bars"]
+
 volumes:
   redis-data:
   pg-data:

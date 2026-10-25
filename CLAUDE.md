@@ -42,6 +42,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Lint: `ruff check . && ruff format --check .`
 - Bypass guard: `python scripts/check_no_risk_bypass.py src`
 - Local stack: `cp .env.example .env`, fill it, `docker compose up -d ib-gateway redis timescaledb`
+- Practice backtest (offline, no orders): `docker compose --profile backtest run --rm bars-download`, then `... run --rm backtest` (docs/runbooks/backtest.md)
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents
