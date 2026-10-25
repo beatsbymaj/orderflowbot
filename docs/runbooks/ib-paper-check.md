@@ -1,6 +1,6 @@
 # Runbook: read-only IBKR paper check
 
-Goal: prove FlowForge can log in to your IBKR **paper** account, reconcile, and read balances, positions and open orders. Nothing in this check can place an order: the node has no strategies, the gateway runs with a read-only API, and the script refuses anything that isn't a paper account.
+Goal: prove FlowForge can log in to your IBKR **paper** account, reconcile, and read balances, positions and open orders. Nothing in this check can place an order: the node has no strategies and the script refuses anything that isn't a paper account. The paper gateway runs with `READ_ONLY_API: "no"` because the Nautilus IB execution client fails to connect in read-only mode (IB error 321, seen 2026-10-24); live stays a separate, operator-approved change.
 
 ## 1. One-time: get a paper login (IBKR website)
 1. You need an IBKR Pro account (funded) for API access, paper included.
@@ -62,6 +62,8 @@ It builds the FlowForge image (first time only, a few minutes), connects for 60 
 - `ok: true` with `problems: []` means it worked. Paste the report into the thread (the account id is already masked).
 - Exit code 2 and "refusing to connect" means a setting doesn't look like paper (mode, port, or an account id not starting with DU). Fix `.env`.
 - `ok: false` with `no IB account state received` usually means the gateway wasn't logged in yet: check the VNC window / IBKR Mobile and run step 4 again.
+- `no balances received` means `IB_ACCOUNT_ID` isn't an account of the paper login (IB logs `Invalid account code`). Paper ids are usually `DU` plus 7 digits; check for a missing digit.
+- `exec-connect timeout`, with `Existing session detected` in `docker compose logs ib-gateway`: the paper username is logged in somewhere else (Client Portal, TWS, IBKR Mobile). Log out there, then `docker compose restart ib-gateway` and run step 4 again.
 - Connection errors: make sure `docker compose ps` shows the gateway healthy.
 
 ## 6. Stop

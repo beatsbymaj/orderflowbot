@@ -11,7 +11,9 @@ services:
       TWS_USERID: ${TWS_USERID}
       TWS_PASSWORD: ${TWS_PASSWORD}
       TRADING_MODE: paper            # live is a separate, operator-approved change
-      READ_ONLY_API: "yes"           # Phase 1 never needs to place orders
+      # Operator decision 2026-10-24: the Nautilus IB execution client needs write access to
+      # connect (IB error 321 in read-only mode). Paper only; no strategies exist yet.
+      READ_ONLY_API: "no"
       TWOFA_TIMEOUT_ACTION: restart
       VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:?set VNC_SERVER_PASSWORD in .env}  # VNC only starts when set
       AUTO_RESTART_TIME: "11:59 PM"

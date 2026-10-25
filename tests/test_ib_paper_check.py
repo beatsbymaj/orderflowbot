@@ -103,6 +103,14 @@ def test_summarize_cache_flags_missing_account():
     assert report.problems == ["no IB account state received"]
 
 
+def test_summarize_cache_flags_empty_balances():
+    empty = SimpleNamespace(balances_total=dict, balances_free=dict)
+    report = chk.CheckReport(started_at="t", account="x")
+    chk.summarize_cache(_FakeCache(empty), report)
+    assert not report.ok
+    assert report.problems == ["no balances received (check IB_ACCOUNT_ID matches the paper login)"]
+
+
 def test_build_node_has_no_strategies_and_risk_engine_on():
     node = chk.build_node(PAPER, REPO_CONFIG)
     try:

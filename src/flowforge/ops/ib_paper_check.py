@@ -2,9 +2,9 @@
 
 Starts a Nautilus node with only the IB execution client and no strategies, lets it
 connect and reconcile, then reports the account balances, open positions and open
-orders it found. Nothing in this node can submit an order: there is no strategy, the
-gateway should run with READ_ONLY_API=yes, and the guards below refuse anything that
-doesn't look like a paper account.
+orders it found. Nothing in this node can submit an order: there is no strategy, and the
+guards below refuse anything that doesn't look like a paper account. (The paper gateway
+can't use READ_ONLY_API=yes: the IB execution client then fails to connect, IB error 321.)
 
 Usage:
     python -m flowforge.ops.ib_paper_check --seconds 60
@@ -110,6 +110,9 @@ def summarize_cache(cache: Any, report: CheckReport) -> None:
             report.balances.append(
                 {"currency": str(currency), "total": str(total), "free": str(free.get(currency, ""))}
             )
+        if not report.balances:
+            # IB sends an empty account state when IB_ACCOUNT_ID isn't one of the login's accounts.
+            report.problems.append("no balances received (check IB_ACCOUNT_ID matches the paper login)")
 
     for position in cache.positions_open():
         report.open_positions.append(
