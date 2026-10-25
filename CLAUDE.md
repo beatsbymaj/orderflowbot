@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phase 1 (foundations) in progress since 2026-10-19. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits. No strategy or order-placing code exists yet. See ROADMAP.md and DECISIONS.md.
+Phase 1 (foundations) merged 2026-10-25; Phase 2 (data slice) in progress since 2026-10-25. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits. No strategy or order-placing code exists yet. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -43,6 +43,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Bypass guard: `python scripts/check_no_risk_bypass.py src`
 - Local stack: `cp .env.example .env`, fill it, `docker compose up -d ib-gateway redis timescaledb`
 - Practice backtest (offline, no orders): `docker compose --profile backtest run --rm bars-download`, then `... run --rm backtest` (docs/runbooks/backtest.md)
+- Tick download (past trades + NBBO, gap check, catalog): `docker compose --profile data run --rm ticks-download` (docs/runbooks/tick-download.md)
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents

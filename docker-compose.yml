@@ -74,6 +74,16 @@ services:
     volumes: ["./data:/app/data"]
     command: ["python", "-m", "flowforge.data.alpaca_bars", "--out", "data/bars"]
 
+  # Phase 2: past trades + NBBO quotes into the Parquet catalog (docs/runbooks/tick-download.md).
+  ticks-download:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["data"]
+    environment:
+      ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
+      ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
+    volumes: ["./data:/app/data"]
+    command: ["python", "-m", "flowforge.data.alpaca_ticks", "--out", "data/ticks"]
+
   backtest:
     build: {context: ., dockerfile: docker/node.Dockerfile}
     profiles: ["backtest"]
