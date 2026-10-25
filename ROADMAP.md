@@ -15,7 +15,7 @@ Each phase ends with tests passing, a demo note, and a summary to the operator (
 | 8 Live stage 1 | IBKR live in confirmation mode, small allocation; requires Nautilus 2.0.0 final + IB port merged | ≥4 weeks; live slippage within modeled tolerance |
 | 9 Live stage 2 | Autonomous within caps | Operator's written approval in docs/decisions/ |
 
-Phase 2 progress (2026-10-25, ADR-0010): past trades + NBBO download with per-minute gap check against Alpaca bars, one backfill pass, gap marks and quality reports (`flowforge.data.alpaca_ticks`, docs/runbooks/tick-download.md). Live Alpaca DataClient, LULD/status, clock checks and TotalView still to do.
+Phase 2 progress (2026-10-25, ADR-0010): past trades + NBBO download with per-minute gap check against Alpaca bars, one backfill pass, gap marks and quality reports (`flowforge.data.alpaca_ticks`, docs/runbooks/tick-download.md). Live Alpaca DataClient (ADR-0011: trades, NBBO, halts/LULD, clock checks, outage backfill) built and tested offline; operator has no Algo Trader Plus, so live SIP is untested and Phase 7 needs a live-feed decision. TotalView still to do.
 
 Interim (2026-10-25, ADR-0009): practice backtest on 1-minute bars (opening range breakout, long only, risk limits applied). Tests the backtest machinery only; it is not a gate and doesn't replace Phases 2–5.
 

@@ -30,6 +30,11 @@ container; nothing here was tested against a live response yet). Re-verify month
 - Messages: trade `T=t` (S,i,x,p,s,c,t,z); quote `T=q` (S,ax,ap,as,bx,bp,bs,c,t,z); correction `T=c` (oi,op,os,oc → ci,cp,cs,cc); cancel/error `T=x` (i,x,p,s,a=C/E); LULD `T=l` (u,d,i); trading status `T=s` (sc,sm,rc,rm).
 - Errors: 400 invalid syntax, 401 not authenticated, 402 auth failed, 403 already authenticated, 404 auth timeout, 405 symbol limit, **406 connection limit (one connection for most plans)**, 407 slow client, 409 insufficient subscription, 410 invalid subscribe action, 500 internal. MessagePack via `Content-Type: application/msgpack`.
 
+## Status codes (live `T=s`) [W1]
+- CTA (tapes A/B): 2 halt, 3 resume, 5 price indication, 6 trading range indication, 7/8 imbalance buy/sell, 9/A MOC imbalance, C/D no imbalance, E short sale restriction, F Limit Up-Limit Down.
+- UTP (tapes C/O): H halt, Q quotation resumption, T trading resumption, P volatility trading pause. Reason codes include LUDP/LUDS (LULD pause), T1/T2 news, MWC1-3 circuit breakers.
+- The real-time page still describes live quote sizes as "round lots"; the REST page says shares since 2025-11-03. **UNVERIFIED** for live.
+
 ## Still UNVERIFIED
 - Exchange code for FINRA TRF prints (call `/v2/stocks/meta/exchanges` on the PC).
 - Condition code tables per tape (`/v2/stocks/meta/conditions/{trade|quote}?tape=A|B|C`; response shape not documented on the page).
