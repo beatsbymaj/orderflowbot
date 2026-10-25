@@ -128,6 +128,7 @@ class SymbolEngine:
         self.classifier = Classifier()  # yesterday's NBBO and last price don't carry over
         self.stats = Counter()
         self.unknown = Counter()
+        self.sweep_notionals: list[int] = []  # every sweep that passed venues and shares
         self.hist = {tf: History(self.cfg.lookback_bars) for tf in self.cfg.bar_seconds}
         for tf in self.cfg.bar_seconds:
             step = tf * NS
@@ -148,10 +149,19 @@ class SymbolEngine:
                 "vpin_buckets": self.vpin.buckets,
                 "late_events_total": self.seq.late,
                 "unknown_conditions": dict(sorted(self.unknown.items())),
+                "next_sweep_usd": self._next_sweep_usd(),
                 **dict(sorted(self.stats.items())),
             }
         )
         self.session = None
+
+    def _next_sweep_usd(self) -> float | None:
+        """Nth-largest sweep notional today (N = sweeps_per_day): tomorrow's sweep threshold.
+        Counted from this engine's own sides, so it matches what tomorrow's filter sees."""
+        n = self.cfg.sweeps_per_day
+        if len(self.sweep_notionals) < n:
+            return None
+        return round(sorted(self.sweep_notionals, reverse=True)[n - 1] / USD, 2)
 
     def _finish_bar(self, tf: int, last: bool = False) -> None:
         bar = self.bars[tf]
@@ -254,7 +264,7 @@ class SymbolEngine:
                 "ts": format_ts_ns(t.ts),
                 "price": _px(price),
                 "size": t.size,
-                "notional": round(price * t.size / USD / USD, 2),
+                "notional": round(price * t.size / USD, 2),
                 "exchange": t.exchange,
                 "side": int(side),
                 "conditions": "".join(sorted(t.conditions)).strip(),
@@ -278,12 +288,10 @@ class SymbolEngine:
 
     def _end_sweep(self) -> None:
         sw, self.sweep = self.sweep, None
-        if (
-            sw is None
-            or len(sw.venues) < self.cfg.sweep_min_venues
-            or sw.shares < self.cfg.sweep_min_shares
-            or sw.notional < self.sweep_min_u
-        ):
+        if sw is None or len(sw.venues) < self.cfg.sweep_min_venues or sw.shares < self.cfg.sweep_min_shares:
+            return
+        self.sweep_notionals.append(sw.notional)
+        if sw.notional < self.sweep_min_u:
             return
         self.stats["sweeps"] += 1
         for bar in self.bars.values():
@@ -297,6 +305,7 @@ class SymbolEngine:
                 "end": format_ts_ns(sw.last),
                 "side": int(sw.side),
                 "shares": sw.shares,
+                "notional": round(sw.notional / USD, 2),
                 "prints": sw.prints,
                 "venues": sorted(sw.venues),
                 "low": _px(min(sw.prices)),

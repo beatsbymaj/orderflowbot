@@ -22,7 +22,7 @@ What exists (`src/flowforge/features/`, ADR-0012):
 | Exhaustion | bar | inferred | New 6-bar high with Ask at the top row ≤ 10% of the average row (mirror for lows). Not from the book |
 | Delta / CVD divergence | bar | inferred | Up bar with negative delta (and mirror); new high with CVD below its recent high (and mirror) |
 | Large prints | event | measured | Single market-priced print ≥ the prior day's 10th-largest print (floor $2M), so ~5–10 a day |
-| Sweeps | event | measured + inferred | ISO (F) prints, one side, ≤ 5 ms apart, ≥ 2 venues, notional ≥ the prior day's 20th-largest ISO cluster (floor $250k) |
+| Sweeps | event | measured + inferred | ISO (F) prints, one side, ≤ 5 ms apart, ≥ 2 venues, notional ≥ the prior day's 20th-largest sweep as the engine itself saw it (`next_sweep_usd`; side-blind ISO-cluster estimate only when the prior day wasn't replayed; floor $250k) |
 | Off-exchange share | bar | measured | Volume on venue D (FINRA TRF/ADF) |
 | ISO and odd-lot share | bar | measured | Volume with F / I |
 | Tape speed | bar | measured | Trades/s, shares/s, busiest second, vs the last 20 bars |
@@ -38,6 +38,7 @@ No depth-of-book features: the data has none (TotalView not wired yet), and none
 - **Exit gate on real ticks (operator's PC, 2026-10-25):** SPY 2026-10-23, whole session, 3,795,698 ticks (488,347 trades after 6 cancels, 3,307,351 quotes): replay, Nautilus backtest and live client all **IDENTICAL**, 1,932 records each, hash `75e5475936404de2`. Times 226 s / 233 s / 288 s; live client sent = received for every trade and quote.
 - **All 25 stock-days (first settings), 94 min on the PC, no errors:** late events 0, gap bars 0, unknown condition codes none. Quote rule 71–82% of trades, tick test 16–24% (mostly midpoint prints), no side 2–6%; NBBO locked/crossed at trade time 0.1–2%. Off-exchange (venue D) 38–55% of volume, in line with the market's TRF share, which supports the D = TRF reading. Per 5-min bar day (79 bars): absorption 2–15, stacked imbalances 0–9, big cells 1–8, exhaustion ~14, CVD divergence 13–21.
 - What that run showed and what changed (2026-10-25): the fixed $2M large-print filter gave 24–392 a day (book target 5–10) → threshold now adapts to the prior day's 10th-largest print ($3.7–11.4M on these days). 2-venue ISO sweeps were everyday flow (96–3,104 a day) → now sized by the prior day's 20th-largest ISO cluster. VPIN stayed empty on 15 of 25 days because a day rarely filled the 50-bucket window → buckets are 1/200 of the prior day's volume. These changes need the 25-day run again to confirm the new counts.
+- Re-run, first days (2026-10-25): SPY 10-20 gave 11 large prints (target met) but only 3 sweeps. The ISO-cluster estimate merges buy and sell ISOs within 5 ms, so it ran far above the engine's one-sided sweeps. Fixed: the engine now reports `next_sweep_usd` (its own 20th-largest qualifying sweep) and the replay CLI carries it into the next day. Also fixed: large-print records reported `notional` in millions by mistake (3.75 instead of 3,750,150); the filter itself was right. The first day of each symbol has no prior day, so it runs on the floors only and counts as warm-up.
 
 ## Known risks
 - Thresholds are guesses until Phase 5 walk-forward tests.

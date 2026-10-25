@@ -232,3 +232,34 @@ def test_prior_day_sets_threshold_fields(ticks_dir):
         replay.prior_day(ticks_dir, "AAPL", DAY, FeatureConfig(large_prints_per_day=10**9)).large_print_usd
         is None
     )
+
+
+def test_day_stats_give_tomorrows_sweep_threshold(sample):
+    """Every sweep that passes venues and shares counts toward next_sweep_usd, filtered or not."""
+    events = ordered(*sample)
+    stats = next(r for r in run_engine(events) if r["type"] == "day_stats")
+    assert stats["next_sweep_usd"] is None  # fewer sweeps than sweeps_per_day
+    strict = PriorDay(251.0, 249.0, 250.0, 5_000_000, sweep_usd=1e9)
+    cfg = FeatureConfig(sweeps_per_day=2)
+    out = run_engine(events, config=cfg, setup=lambda e: e.seed_prior_day("AAPL", "2026-10-23", strict))
+    stats = next(r for r in out if r["type"] == "day_stats")
+    assert "sweeps" not in stats and 3200 * 250 < stats["next_sweep_usd"] < 3200 * 251
+    big = next(r for r in run_engine(events) if r["type"] == "large_print")
+    assert big["notional"] == round(big["price"] * big["size"], 2)
+
+
+def test_run_carries_the_engine_sweep_threshold(ticks_dir, tmp_path, monkeypatch):
+    """Consecutive days pass yesterday's next_sweep_usd on; a day after a skipped one doesn't."""
+    seen = []
+
+    def fake(ticks, symbol, day, config, sink, minutes=None, sweep_usd=None):
+        seen.append((day, sweep_usd))
+        sink({"type": "day_stats", "next_sweep_usd": float(day.day)})
+        return {}
+
+    monkeypatch.setattr(replay, "replay_day", fake)
+    replay.run(ticks_dir, tmp_path, ["AAPL"], None, FeatureConfig())
+    assert seen == [(date(2026, 10, 22), None), (DAY, 22.0)]
+    seen.clear()
+    replay.run(ticks_dir, tmp_path, ["AAPL"], [DAY], FeatureConfig())
+    assert seen == [(DAY, None)]

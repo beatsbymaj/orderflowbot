@@ -19,7 +19,7 @@ import heapq
 import json
 import sys
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -130,7 +130,9 @@ def prior_day(ticks: Path, symbol: str, day: date, config: FeatureConfig | None 
 
 def iso_cluster_notionals(trades: list[Trade], config: FeatureConfig) -> list[float]:
     """Notionals of ISO clusters (same gap and venue rules as the engine's sweeps, but without
-    the aggressor side, which needs quotes), largest first. Only used to size a threshold."""
+    the aggressor side, which needs quotes), largest first. Only a fallback for sizing the
+    sweep threshold: buy and sell ISOs merge here, so it runs high (SPY 2026-10-20 gave 3
+    sweeps against a target of 20). `run` uses the engine's own `next_sweep_usd` instead."""
     gap = config.sweep_gap_ms * 1_000_000
     out: list[float] = []
     last, notional, venues = None, 0.0, set()
@@ -169,8 +171,14 @@ def merged(quotes: list, trades: list, lookup: ConditionsLookup) -> Iterator[tup
         yield kind, rec
 
 
-def _seed(engine: FeatureEngine, ticks: Path, d: DayData, config: FeatureConfig) -> None:
+def _seed(
+    engine: FeatureEngine, ticks: Path, d: DayData, config: FeatureConfig, sweep_usd: float | None = None
+) -> None:
+    """`sweep_usd`: the prior day's `next_sweep_usd` from the engine itself, when that day was
+    just replayed. It replaces the side-blind ISO-cluster estimate, which runs too high."""
     prior = prior_day(ticks, d.symbol, d.day, config)
+    if prior is not None and sweep_usd is not None:
+        prior = replace(prior, sweep_usd=sweep_usd)
     if prior is not None:
         engine.seed_prior_day(d.symbol, d.day.isoformat(), prior)
     for a, b in d.gaps:
@@ -184,12 +192,13 @@ def replay_day(
     config: FeatureConfig,
     sink: Callable[[dict], None],
     minutes: int | None = None,
+    sweep_usd: float | None = None,
 ) -> dict:
     """Path A: catalog -> engine."""
     d = load_day(ticks, symbol, day)
     catalog = ParquetDataCatalog(str(ticks / "catalog"))
     engine = FeatureEngine(config, sink)
-    _seed(engine, ticks, d, config)
+    _seed(engine, ticks, d, config, sweep_usd)
     counts = {"trades": 0, "quotes": 0}
     for quotes, trades in iter_ticks(catalog, d, minutes):
         for kind, rec in merged(quotes, trades, d.conditions):
@@ -317,9 +326,15 @@ def run(
 ) -> list[dict]:
     rows = []
     for symbol in symbols:
-        for day in days or trading_days(ticks, symbol):
+        available = trading_days(ticks, symbol)
+        last: tuple[date, float | None] | None = None  # last replayed day, its next_sweep_usd
+        for day in days or available:
+            before = [x for x in available if x < day]
+            carry = last[1] if last and before and before[-1] == last[0] else None
             records: list[dict] = []
-            replay_day(ticks, symbol, day, config, records.append)
+            replay_day(ticks, symbol, day, config, records.append, sweep_usd=carry)
+            stats = next((r for r in records if r["type"] == "day_stats"), {})
+            last = (day, stats.get("next_sweep_usd"))
             path = out / symbol / f"{day.isoformat()}.jsonl.gz"
             path.parent.mkdir(parents=True, exist_ok=True)
             with gzip.open(path, "wt", encoding="utf-8") as fh:
