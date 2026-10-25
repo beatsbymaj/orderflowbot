@@ -44,6 +44,9 @@ from flowforge.features.config import FeatureConfig
 from flowforge.features.replay import _seed, backtest_day, iter_ticks, load_day, merged, replay_day
 
 FRAME_SIZE = 500  # messages per websocket frame
+# Files are read far faster than the node consumes them; without a cap the unread messages
+# pile up in memory (3+ GB for a day). Real Alpaca traffic is much slower than this.
+MAX_BACKLOG = 20 * FRAME_SIZE
 
 
 def trade_message(symbol: str, t: Trade) -> dict:
@@ -80,7 +83,8 @@ class ReplaySocket:
     """Stands in for Alpaca's websocket: handshake, then the recorded frames (pulled lazily
     from `frames`) once the client has subscribed to trades and quotes for every symbol."""
 
-    def __init__(self, frames: Iterator[str], symbols: list[str]) -> None:
+    def __init__(self, frames: Iterator[str], symbols: list[str], backlog: Any = None) -> None:
+        self._backlog = backlog or (lambda: 0)  # messages sent but not yet seen by the actor
         self._out = [
             json.dumps([{"T": "success", "msg": "connected"}]),
             json.dumps([{"T": "success", "msg": "authenticated"}]),
@@ -103,7 +107,7 @@ class ReplaySocket:
                 return self._out.pop(0)
             if self.closed:
                 raise ConnectionError("closed")
-            if not self._need and not self.exhausted:
+            if not self._need and not self.exhausted and self._backlog() < MAX_BACKLOG:
                 frame = next(self._frames, None)
                 if frame is not None:
                     return frame
@@ -158,8 +162,14 @@ def live_records(
         if batch:
             yield json.dumps(batch)
 
-    socket = ReplaySocket(frames(), [symbol])
     records: list[dict] = []
+    actor_box: list[FeatureActor] = []
+
+    def backlog() -> int:
+        seen = actor_box[0].received if actor_box else {"trades": 0, "quotes": 0}
+        return sent["trades"] + sent["quotes"] - seen["trades"] - seen["quotes"]
+
+    socket = ReplaySocket(frames(), [symbol], backlog)
     with tempfile.TemporaryDirectory() as tmp:
         client_config = AlpacaDataClientConfig(
             feed="sip", journal_path=str(Path(tmp) / "journal.jsonl"), backfill=False
@@ -174,6 +184,7 @@ def live_records(
             .build()
         )
         actor = FeatureActor([symbol], config, on_record=records.append)
+        actor_box.append(actor)
         if seed is not None:
             seed(actor.engine)
         node.add_actor(actor)
