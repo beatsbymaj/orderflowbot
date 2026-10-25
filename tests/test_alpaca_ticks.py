@@ -1,4 +1,5 @@
 import gzip
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -110,11 +111,15 @@ def test_throttle_spaces_calls_and_retries_transient_errors():
             raise AlpacaError("rate limited", 429)
         if len(attempts) == 2:
             raise urllib.error.URLError("reset")
+        if len(attempts) == 3:
+            raise http.client.IncompleteRead(b"partial", 100)  # transfer cut off mid-page
+        if len(attempts) == 4:
+            raise json.JSONDecodeError("truncated", "{", 1)
         return {"ok": True}
 
     t = at.Throttle(flaky, 60, sleep=sleep, clock=lambda: clock[0])
     assert t("u", {}) == {"ok": True}
-    assert t.calls == 3
+    assert t.calls == 5
     assert sleeps[0] == 2.0  # backoff after the 429
     assert 4.0 in sleeps  # backoff after the network error
 
@@ -303,3 +308,19 @@ def test_main_errors(monkeypatch, capsys):
     monkeypatch.setattr(at, "find_sessions", lambda *a, **k: [])
     assert at.main([]) == 1
     assert "no trading days" in capsys.readouterr().err
+
+
+def test_backfill_window_replaces_a_window_in_the_catalog(tmp_path):
+    fake = FakeAlpaca()
+    fake.add("bars", "SPY", bar(et(10, 0), 2, 200), bar(et(10, 1), 1, 100))
+    fake.add("trades", "SPY", trade(et(10, 0, 5), 1), trade(et(10, 0, 9), 2), trade(et(10, 1, 3), 3))
+    fake.add(
+        "quotes", "SPY", quote(et(10, 0, 1)), quote(et(10, 0, 30)), quote(et(10, 1, 0)), quote(et(10, 1, 30))
+    )
+    s = no_sleep_settings(tmp_path, fake)
+    result = at.backfill_window(s, "SPY", et(10, 0, 20), et(10, 1, 10))  # widened to 10:00-10:02
+    assert result["start"].endswith("10:00:00-04:00") and result["end"].endswith("10:02:00-04:00")
+    assert result["trades"] == 3 and result["quotes"] == 4 and result["short_minutes"] == 0
+    at.backfill_window(s, "SPY", et(10, 0, 20), et(10, 1, 10))
+    assert len(s.catalog.query_trade_ticks(["SPY.XNAS"])) == 3
+    assert list((tmp_path / "raw" / "SPY" / DAY.isoformat()).glob("backfill_*.csv.gz"))

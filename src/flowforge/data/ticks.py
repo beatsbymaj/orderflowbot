@@ -153,7 +153,7 @@ def make_tick_equity(symbol: str) -> Equity:
     )
 
 
-def to_trade_tick(trade: Trade, iid: InstrumentId) -> TradeTick:
+def to_trade_tick(trade: Trade, iid: InstrumentId, ts_init: int | None = None) -> TradeTick:
     # Aggressor side is decided later by the Phase 3 classifier, never guessed here.
     return TradeTick(
         iid,
@@ -162,11 +162,11 @@ def to_trade_tick(trade: Trade, iid: InstrumentId) -> TradeTick:
         AggressorSide.NO_AGGRESSOR,
         TradeId(trade.trade_id),
         trade.ts,
-        trade.ts,
+        trade.ts if ts_init is None else ts_init,
     )
 
 
-def to_quote_tick(quote: Quote, iid: InstrumentId) -> QuoteTick:
+def to_quote_tick(quote: Quote, iid: InstrumentId, ts_init: int | None = None) -> QuoteTick:
     return QuoteTick(
         iid,
         Price(quote.bid_price, PRICE_PRECISION),
@@ -174,5 +174,5 @@ def to_quote_tick(quote: Quote, iid: InstrumentId) -> QuoteTick:
         Quantity(quote.bid_size, 0),
         Quantity(quote.ask_size, 0),
         quote.ts,
-        quote.ts,
+        quote.ts if ts_init is None else ts_init,
     )

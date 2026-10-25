@@ -22,10 +22,10 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import http.client
 import json
 import sys
 import time
-import urllib.error
 import urllib.parse
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -93,7 +93,8 @@ class Throttle:
             except AlpacaError as exc:
                 if exc.status not in RETRY_STATUSES or attempt == MAX_RETRIES:
                     raise
-            except (urllib.error.URLError, TimeoutError, ConnectionError) as exc:
+            # Dropped or cut-off transfers (seen on a real run: IncompleteRead mid-page).
+            except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
                 if attempt == MAX_RETRIES:
                     raise AlpacaError(f"network error after {MAX_RETRIES} retries: {exc}") from None
             self._sleep(2.0 ** (attempt + 1))
@@ -371,6 +372,37 @@ def ingest_day(s: Settings, symbol: str, session: Session) -> dict:
     return report
 
 
+def backfill_window(s: Settings, symbol: str, start: int, end: int) -> dict:
+    """Re-download [start, end) (widened to whole minutes) into the catalog, e.g. after a
+    live-stream outage. Replaces whatever the catalog held for that window."""
+    a = quality.minute_of(start)
+    b = quality.minute_of(end - 1) + quality.MINUTE_NS
+    iid = instrument_id(symbol)
+    day = datetime.fromtimestamp(a / NS, ET).date()
+    s.catalog.delete_data_range(NautilusDataType.TradeTick, str(iid), a, b - 1)
+    s.catalog.delete_data_range(NautilusDataType.QuoteTick, str(iid), a, b - 1)
+    s.catalog.write_instruments([make_tick_equity(symbol)])
+    bars = minute_bars(symbol, day, s.keys, s.feed, s.fetch)
+    trades, check, gaps = ingest_trades_window(s, symbol, a, b, bars)
+    _write_raw_trades(
+        s.raw_path(symbol, day, a).with_name(f"backfill_{_iso(a)[11:19].replace(':', '')}.csv.gz"), trades
+    )
+    kept = [to_trade_tick(t, iid) for t in trades if not t.dropped]
+    if kept:
+        s.catalog.write_trade_ticks(kept, start=a, end=b - 1)
+    quotes, _q_checks, quote_gaps = ingest_quotes_window(s, symbol, a, b, quote_size_multiplier(day), a)
+    if quotes:
+        s.catalog.write_quote_ticks([to_quote_tick(q, iid) for q in quotes], start=a, end=b - 1)
+    return {
+        "start": _iso(a),
+        "end": _iso(b),
+        "trades": len(kept),
+        "quotes": len(quotes),
+        "short_minutes": len(check.gap_minutes),
+        "gaps": gaps + quote_gaps,
+    }
+
+
 def describe(report: dict) -> str:
     """One plain-words line per symbol-day."""
     bc = report["bar_check"]
@@ -416,6 +448,7 @@ def download(s: Settings, symbols: list[str], sessions: list[Session]) -> list[d
                 report = ingest_day(s, symbol, session)
                 print("  " + describe(report), flush=True)
             reports.append(report)
+            write_summary(s.out, reports)  # kept current, so a stopped run still has one
     return reports
 
 
