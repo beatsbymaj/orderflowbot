@@ -35,7 +35,8 @@ No depth-of-book features: the data has none (TotalView not wired yet), and none
 
 ## Results
 - Offline (cloud, made-up ticks): replay, backtest and live paths identical; 144 tests pass, 97% coverage.
-- Real ticks on the operator's PC: _to fill in after the runbook (docs/runbooks/features.md)._
+- **Exit gate on real ticks (operator's PC, 2026-10-25):** SPY 2026-10-23, whole session, 3,795,698 ticks (488,347 trades after 6 cancels, 3,307,351 quotes): replay, Nautilus backtest and live client all **IDENTICAL**, 1,932 records each, hash `75e5475936404de2`. Times 226 s / 233 s / 288 s; live client sent = received for every trade and quote.
+- Features for all 25 stock-days: _summary to add when the run finishes._
 
 ## Known risks
 - Thresholds are guesses until Phase 5 walk-forward tests.
