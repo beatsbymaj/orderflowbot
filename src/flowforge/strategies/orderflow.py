@@ -19,6 +19,7 @@ from flowforge.execution.strategy import GuardedStrategy
 from flowforge.gate.jev import GateDecision, JevGate
 from flowforge.risk.guard import EntryRequest
 from flowforge.signals.setups import BOOK_DEFAULT, Plan, Signal, SignalEngine, plan
+from flowforge.strategies.tape import TapeSnapshot
 
 
 @dataclass
@@ -40,6 +41,7 @@ class OrderFlowStrategy(GuardedStrategy):
         setups: Mapping[str, tuple[str, str]] | None = None,  # setup -> (stop mode, target mode)
         gate: JevGate | None = None,
         gate_blocking: bool = False,  # backtests: wait for Jev (real deadline) instead of polling
+        tape_path: str | None = None,  # dashboard Tape page snapshot (strategies/tape.py)
         **kwargs: Any,
     ) -> None:
         super().__init__(symbols, guard, universe, journal, **kwargs)
@@ -49,9 +51,12 @@ class OrderFlowStrategy(GuardedStrategy):
         self.gate_blocking = gate_blocking
         self.pending: list[_Pending] = []
         self.signal_count = 0
+        self.tape = TapeSnapshot(tape_path) if tape_path else None
 
     # -- features -> signals ------------------------------------------------------------
     def on_feature(self, record: dict) -> None:
+        if self.tape is not None:
+            self.tape.on_record(record)
         for sig in self.signals.on_record(record):
             self.signal_count += 1
             self.on_signal(sig)
@@ -104,6 +109,8 @@ class OrderFlowStrategy(GuardedStrategy):
     def on_risk_tick(self, now: int) -> None:
         if self.pending:
             self._check_pending()
+        if self.tape is not None:
+            self.tape.maybe_write(now)
 
     def _check_pending(self) -> None:
         now = self.clock.timestamp_ns()

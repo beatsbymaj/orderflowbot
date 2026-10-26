@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from conftest import et_ns
 from nautilus_trader.backtest import BacktestEngine, BacktestEngineConfig
@@ -196,3 +198,25 @@ def test_flatten_strategy_with_nothing_to_do():
     engine.run()
     assert report.flat and report.sold == {} and report.cancelled == []
     engine.dispose()
+
+
+def test_watchdog_alive_file_for_the_dashboard(tmp_path):
+    from flowforge.ops.watchdog import Decision, write_alive
+
+    write_alive(tmp_path / "run" / "watchdog.json", 7, Decision("alert", "why"))
+    assert json.loads((tmp_path / "run" / "watchdog.json").read_text()) == {
+        "ts_ns": 7,
+        "action": "alert",
+        "reason": "why",
+    }
+    blocker = tmp_path / "file"
+    blocker.write_text("")
+    write_alive(blocker / "watchdog.json", 8, Decision("none"))  # can't write: the watchdog carries on
+
+
+def test_heartbeat_carries_equity_and_reads_old_files(tmp_path):
+    p = tmp_path / "hb.json"
+    write_heartbeat(p, Heartbeat(5, "n", {}, 0, None, False, 9_990.5, 10_000.0))
+    assert read_heartbeat(p).equity == 9_990.5 and read_heartbeat(p).day_start_equity == 10_000.0
+    p.write_text(json.dumps({"ts_ns": 5, "trader": "old"}))
+    assert read_heartbeat(p).equity is None

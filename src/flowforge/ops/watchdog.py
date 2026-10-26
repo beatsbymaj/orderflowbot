@@ -53,6 +53,18 @@ SESSION_SLACK_S = 10 * 60  # keep watching for 10 min after the close
 FLATTEN_CANCEL_WAIT_S = 15
 FLATTEN_FILL_WAIT_S = 30
 WATCHDOG_TRADER = "FLOWFORGE-WATCHDOG"
+ALIVE_FILE = "watchdog.json"
+
+
+def write_alive(path: Path, now_ns: int, decision: Decision) -> None:
+    """The watchdog's own heartbeat: that it is running, and what it last decided."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps({"ts_ns": now_ns, "action": decision.action, "reason": decision.reason}))
+        os.replace(tmp, path)
+    except OSError:
+        pass  # never let the dashboard's file stop the watchdog
 
 
 @dataclass
@@ -332,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--journal", type=Path, default=Path("data/journal/watchdog"))
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args(argv)
+    alive = args.heartbeat.with_name(ALIVE_FILE)  # read by the dashboard's Health page
 
     limits = load_risk_limits(args.risk_limits).limits
     dog = Watchdog(
@@ -343,6 +356,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     while True:
         decision = dog.tick()
+        write_alive(alive, wall_clock_ns(), decision)
         if decision.action != "none":
             print(json.dumps(asdict(decision)), flush=True)
         if args.once:

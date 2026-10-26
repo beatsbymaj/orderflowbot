@@ -1,6 +1,7 @@
 # FlowForge local stack. Phase 1: IB Gateway (paper), Redis, TimescaleDB and the read-only
-# IBKR paper check. Phase 4: watchdog and the kill switch command. Later phases add the
-# trading node, API and dashboard. Copy .env.example to .env first.
+# IBKR paper check. Phase 4: watchdog and the kill switch command. Phase 6: dashboard,
+# phone alerts and the daily reports. Phase 7 adds the trading node. Copy .env.example to
+# .env first.
 
 services:
   ib-gateway:
@@ -156,6 +157,56 @@ services:
     depends_on:
       ib-gateway: {condition: service_healthy}
     command: ["python", "-m", "flowforge.ops.watchdog"]
+
+  # Phase 6: dashboard on http://localhost:8080 (docs/runbooks/dashboard.md). Read only,
+  # except the kill switch button, which can only turn the switch ON.
+  dashboard:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      FLOWFORGE_RUN_DIR: /var/run/flowforge
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      NTFY_TOPIC: ${NTFY_TOPIC:-}                       # only "set / not set" is shown
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    ports: ["127.0.0.1:8080:8080"]                      # this computer only
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports:ro"]
+    command: ["python", "-m", "flowforge.api", "--host", "0.0.0.0", "--port", "8080"]
+
+  # Phase 6: the dashboard with made-up data, for a walkthrough before paper trading.
+  dashboard-demo:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["demo"]
+    ports: ["127.0.0.1:8080:8080"]
+    command: ["python", "-m", "flowforge.api", "--host", "0.0.0.0", "--port", "8080", "--demo", "/app/data/demo"]
+
+  # Phase 6: phone alerts from the journals (docs/runbooks/alerts.md).
+  alerts:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes: ["./data:/app/data"]
+    command: ["python", "-m", "flowforge.ops.alerts", "run"]
+
+  # Phase 6: pre-market check at 09:00 ET and end-of-day report after the close.
+  daily:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      FLOWFORGE_HEARTBEAT: /var/run/flowforge/heartbeat.json
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.ops.daily", "schedule"]
 
 volumes:
   redis-data:

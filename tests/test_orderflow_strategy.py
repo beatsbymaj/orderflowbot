@@ -177,3 +177,26 @@ def test_async_gate_answer_in_time_enters_and_a_late_one_is_no_trade(limits, tmp
 def test_setups_from_text():
     assert setups_from_text("H1:atr/2r, H4") == {"H1": ("atr", "2r"), "H4": ("zone", "volume")}
     assert setups_from_text("") == {}
+
+
+def test_node_writes_equity_marks_heartbeat_equity_and_the_tape(limits, tmp_path):
+    lp = {
+        "type": "large_print",
+        "symbol": "SPY",
+        "ts": "2026-10-27T10:31:00",
+        "side": 1,
+        "size": 9000,
+        "notional": 900000.0,
+        "price": 100.0,
+    }
+    script = records() + [(et_ns(10, 31), bar(10, 31, 99.9, 100.1, 100.0, tf=60)), (et_ns(10, 31), lp)]
+    tape = tmp_path / "tape.json"
+    res = run_sim(limits, market(), script, tmp_path, strategy_cls=flow(setups={}, tape_path=str(tape)))
+    marks = res.events("equity_mark")
+    assert len(marks) >= 10 and all(m["day_start_equity"] == 10_000.0 for m in marks)
+    gaps = {b["ts_ns"] - a["ts_ns"] for a, b in zip(marks, marks[1:], strict=False)}
+    assert gaps == {60 * 1_000_000_000}
+    beat = json.loads((tmp_path / "heartbeat.json").read_text())
+    assert beat["equity"] == 10_000.0 and beat["day_start_equity"] == 10_000.0
+    snap = json.loads(tape.read_text())["symbols"]["SPY"]
+    assert snap["bars"][0]["close"] == 100.0 and snap["events"][0]["kind"] == "large print"

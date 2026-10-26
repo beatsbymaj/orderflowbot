@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en-US" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlowForge</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Crect width='26' height='26' rx='6' fill='%23131217'/%3E%3Cpath d='M7 19V7h8M7 13h6M15 19v-6h5' fill='none' stroke='%234a8ad6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="FlowForge">
+    <div class="mark" title="FlowForge">
+      <!-- the mark: an F whose lower arm steps down into a second bar, like a fill on the tape -->
+      <svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="6" fill="#131217"/><path d="M7 19V7h8M7 13h6M15 19v-6h5" fill="none" stroke="#4a8ad6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <a href="#/live" data-route="live" aria-label="Live"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 5 12L17 12h4"/></svg><span class="tip">Live</span></a>
+    <a href="#/tape" data-route="tape" aria-label="Tape"><svg viewBox="0 0 24 24"><path d="M4 20V10M9 20V4M14 20v-7M19 20V8"/></svg><span class="tip">Tape</span></a>
+    <a href="#/signals" data-route="signals" aria-label="Signals"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span class="tip">Signals</span></a>
+    <a href="#/approvals" data-route="approvals" aria-label="Approvals" class="desk"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12.5 2.5 2.5 4.5-5.5"/></svg><span class="tip">Approvals</span></a>
+    <a href="#/journal" data-route="journal" aria-label="Journal"><svg viewBox="0 0 24 24"><path d="M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6z"/><path d="M6 3v18M9.5 8h5M9.5 12h5"/></svg><span class="tip">Journal</span></a>
+    <a href="#/proposals" data-route="proposals" aria-label="Proposals" class="desk"><svg viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="9" r="2"/><path d="M6 7v10M18 11c0 4-6 3-11.5 6.5"/></svg><span class="tip">Proposals</span></a>
+    <div class="sep"></div>
+    <a href="#/health" data-route="health" aria-label="Health"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span class="tip">Health</span></a>
+    <a href="#/settings" data-route="settings" aria-label="Settings" class="bottom"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="tip">Settings</span></a>
+  </nav>
+  <main class="canvas" id="main">
+    <div class="scope"><b>FlowForge</b><span>·</span><span id="scope-account">IBKR paper</span><span>·</span><span id="scope-session">–</span></div>
+    <div id="demo" class="notice" hidden>Demo data. Everything on these screens is made up for a walkthrough; it is not your account.</div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<dialog id="kill-dialog">
+  <form method="dialog" id="kill-form">
+    <h2>Turn the kill switch on?</h2>
+    <p>FlowForge stops new trades at once and sells what it holds. The watchdog backs it up. Turning it off again is done from the command line only, on purpose.</p>
+    <div class="field">
+      <label for="kill-reason">Why (for the journal)</label>
+      <input class="input" id="kill-reason" name="reason" value="stopped from the dashboard" minlength="3" maxlength="200" required>
+    </div>
+    <p id="kill-error" class="error" hidden></p>
+    <div class="row-end">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn danger solid" value="go" id="kill-go">Turn kill switch on</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

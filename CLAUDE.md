@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awaiting review; Phase 5 (signals + Jev gate) built 2026-10-26, real-data walk-forward pending on the operator's PC. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Order code exists only behind RiskGuard (`GuardedStrategy`); `OrderFlowStrategy` trades only setups explicitly enabled, and none is enabled until one passes the Phase 5 gate. See ROADMAP.md and DECISIONS.md.
+Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awaiting review; Phase 5 (signals + Jev gate) built 2026-10-26, real-data walk-forward pending on the operator's PC; Phase 6 (dashboard, alerts, daily reports) built 2026-10-26, operator walkthrough pending. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Order code exists only behind RiskGuard (`GuardedStrategy`); `OrderFlowStrategy` trades only setups explicitly enabled, and none is enabled until one passes the Phase 5 gate. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -26,7 +26,7 @@ Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awa
 Trader Dale's *Order Flow Trading Setups* is the project's order-flow reference (summary: /mnt/project-files/orderflow/reference/order-flow-setups-book.md). Its examples are futures/forex and untested; every setup is a hypothesis to validate walk-forward on US equities. All its setups except DOM reading are computable from trades + the quote at trade time.
 
 ## Architecture
-One Nautilus TradingNode: data clients, feature indicators/actors, strategies, Jev gate actor, FlowForge RiskGuard, IB execution client. Separate processes: IB Gateway, watchdog (independent cancel/flatten), post-trade, FastAPI API, React dashboard. Node events → Redis Streams; journal in Postgres + TimescaleDB; ticks in the Nautilus Parquet catalog. Docker Compose; macOS + Linux VPS.
+One Nautilus TradingNode: data clients, feature indicators/actors, strategies, Jev gate actor, FlowForge RiskGuard, IB execution client. Separate processes: IB Gateway, watchdog (independent cancel/flatten), post-trade, alert relay, daily reports, FastAPI API + no-build dashboard. Node events → JSON-lines journals (Redis Streams / TimescaleDB deferred, ADR-0015); ticks in the Nautilus Parquet catalog. Docker Compose; macOS + Linux VPS.
 
 ## Layout
 - docs/research/ — one file per topic, sources dated
@@ -48,6 +48,8 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
 - Kill switch / halts: `docker compose run --rm riskctl status|kill|release|reenable`; watchdog: `docker compose --profile paper up -d watchdog` (docs/runbooks/kill-switch.md)
 - Phase 5 walk-forward (offline, no orders): `docker compose --profile research run --rm walkforward` (`--jev` for the gate; docs/runbooks/walkforward.md). Hypotheses are pre-registered in docs/research/14; don't change them after seeing results.
+- Dashboard (read only + kill ON): `docker compose --profile paper up -d dashboard` → http://localhost:8080; demo data: `docker compose --profile demo up --build dashboard-demo` (docs/runbooks/dashboard.md)
+- Phone alerts and daily reports: `docker compose --profile paper up -d alerts daily` (docs/runbooks/alerts.md, daily-ops.md)
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents

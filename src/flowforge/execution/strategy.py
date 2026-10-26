@@ -66,6 +66,7 @@ FLATTEN_BEFORE_CLOSE_S = 5 * 60  # flatten_at_close: everything is sold 5 min be
 NODE_KILL_WINDOW_S = 20
 FREEZE_S = 10
 VOLUME_LOOKBACK_MIN = 30
+EQUITY_MARK_S = 60  # equity journaled once a minute for the dashboard's day curve
 TIMER = "flowforge-risk-tick"
 USD = Currency.from_str("USD")
 
@@ -117,6 +118,7 @@ class GuardedStrategy(Strategy):
         self._kill_handled = False
         self._kill_seen_ns: int | None = None
         self._last_tick_ns: int | None = None
+        self._last_mark_ns: int | None = None
         self.frozen = False
 
     # -- lifecycle --------------------------------------------------------------------
@@ -491,6 +493,14 @@ class GuardedStrategy(Strategy):
         self._ensure_day(now)
         equity = self.equity()
         breach = self.risk_state.on_equity(equity)
+        if self._last_mark_ns is None or now - self._last_mark_ns >= EQUITY_MARK_S * NS:
+            self._last_mark_ns = now
+            self._journal(
+                "equity_mark",
+                equity=round(equity, 2),
+                day_start_equity=round(self.risk_state.day_start_equity, 2),
+                week_peak_equity=round(self.risk_state.week_peak_equity, 2),
+            )
         if breach:
             reason = self.risk_state.halt_reason() or breach
             self.alert("critical", f"{breach} loss limit hit, equity {equity:.2f}: {reason}")
@@ -535,6 +545,8 @@ class GuardedStrategy(Strategy):
                     len(self.cache.orders_open()),
                     self.risk_state.halt_reason(),
                     engaged,
+                    round(equity, 2),
+                    round(self.risk_state.day_start_equity, 2),
                 ),
             )
 

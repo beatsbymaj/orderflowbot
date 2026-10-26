@@ -11,6 +11,7 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Any
 
 from flowforge.risk.calendar import NS
 
@@ -23,6 +24,8 @@ class Heartbeat:
     open_orders: int = 0
     halt: str | None = None
     kill: bool = False
+    equity: float | None = None  # marked at the bid; None from nodes older than Phase 6
+    day_start_equity: float | None = None
 
     def age_s(self, now_ns: int) -> float:
         return (now_ns - self.ts_ns) / NS
@@ -47,9 +50,15 @@ def read_heartbeat(path: str | Path) -> Heartbeat | None:
             int(data.get("open_orders", 0)),
             data.get("halt"),
             bool(data.get("kill", False)),
+            _float(data.get("equity")),
+            _float(data.get("day_start_equity")),
         )
     except (OSError, ValueError, KeyError, TypeError):
         return None
+
+
+def _float(value: Any) -> float | None:
+    return None if value is None else float(value)
 
 
 def wall_clock_ns() -> int:
