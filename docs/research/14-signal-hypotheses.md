@@ -1,5 +1,9 @@
 # 14. Phase 5 signal hypotheses (pre-registered)
 
+Wording clarified 2026-10-26 while writing the code, still before any real-data run: level
+timeframes (H1–H3), the 1-min delta in H5 (the 5-min bar isn't finished when a sweep lands)
+and the every-touch-counts rule.
+
 Written 2026-10-26, **before** any signal was run on real data. This file is the test plan.
 Changing a rule, the grid, the data window or the pass bar after results are seen makes the
 test invalid; any such change gets a new dated section and the whole test is re-run on data
@@ -35,12 +39,13 @@ examples are futures/forex and untested on US equities).
 ## Hypotheses
 | Id | Name | Source | Entry condition on the closing 5-min bar |
 |---|---|---|---|
-| H1 | Stacked-imbalance pullback | book §3 #4 | A 30-min stacked-imbalance level (either side) that price left for ≥ 1 whole 30-min bar, never touched since (`touches == 0`), first touched from above: previous 5-min low > level high, this bar's low ≤ level high, close ≥ level low |
-| H2 | Large-print (trades-filter) pullback | book §3 #3 | Same pullback rule on a large-print level (side ignored, as the book says) |
+| H1 | Stacked-imbalance pullback | book §3 #4 | A 30-min stacked-imbalance level (either side) that price left for ≥ 1 whole bar of the level's timeframe, never touched since (`touches == 0`), first touched from above: previous 5-min low > level high, this bar's low ≤ level high, close ≥ level low |
+| H2 | Large-print (trades-filter) pullback | book §3 #3 | Same pullback rule on a large-print level (side ignored, as the book says; the engine builds these at 5 minutes, so "left" means ≥ 1 whole 5-min bar) |
 | H3 | Multiple-node pullback | book §3 #2 | Same pullback rule on a 30-min multiple-node level |
-| H4 | Zone + order-flow confirmation | book §5 | Price is in a support zone (this bar's low ≤ zone high and close ≥ zone low; zones: session VAL, prior-day low, VWAP − 1σ, opening-range low once complete, and any stacked-imbalance / multiple-node / large-print / absorption level below the prior close) and the bar shows a confirmation at or inside the zone: big bid cell, absorption row, seller exhaustion (`exhaustion == 1`) or bullish CVD divergence (`cvd_divergence == 1`) |
-| H5 | Follow buy-side aggression | house playbook | A confirmed buy-side sweep while price is above VWAP and the current 5-min bar's delta is positive. Zone = sweep low … sweep high |
+| H4 | Zone + order-flow confirmation | book §5 | Price is in a support zone (this bar's low ≤ zone high and close ≥ zone low; zones: session VAL, prior-day low, VWAP − 1σ, opening-range low once complete, and any stacked-imbalance / multiple-node / large-print / absorption level at or below this bar's open) and the bar shows a confirmation at or inside the zone: big bid cell, absorption row, seller exhaustion (`exhaustion == 1`) or bullish CVD divergence (`cvd_divergence == 1`) |
+| H5 | Follow buy-side aggression | house playbook | A confirmed buy-side sweep while price is above VWAP and the last finished 1-min bar's delta is positive. Zone = sweep low … sweep high |
 
+Every touch, signalled or not, counts: a level touched once by any 5-min bar can't signal again.
 Stops: H1–H4 "zone" stop = zone low − 1 footprint row; H5 = sweep low − 1 row.
 
 **Control (not a hypothesis, not counted):** random entries, same count per symbol-day as all
@@ -93,8 +98,10 @@ max drawdown in R, longest losing streak, per fold, per symbol. No window is dro
   Jev would have to compare). 750 ms total deadline, no retries; timeout or any error = NO
   TRADE (counted as a veto in the results, not dropped).
 - Threshold τ ∈ {0.5, 0.6, 0.7} picked in each train window (3 more trials, counted).
-- The gate is kept only if, out of sample, gated mean net R beats the ungated baseline with a
-  paired day-block bootstrap p < 0.05, and Jev's Brier score beats the base-rate forecast.
+- The gate is kept only if, out of sample, gated mean net R beats the ungated baseline, the
+  gated net R per test day (a vetoed trade counts 0) beats the ungated one with a paired
+  day-block bootstrap p < 0.05, and Jev's Brier score beats forecasting the train-window win
+  rate.
   Calibration (Brier, 10-bin reliability) is tracked per question. Without a TypeSafe key the
   gate stays off and this part is reported as not run.
 

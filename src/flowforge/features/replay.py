@@ -322,32 +322,57 @@ def write_summary(out: Path, rows: list[dict]) -> Path:
 
 
 def run(
-    ticks: Path, out: Path, symbols: list[str], days: list[date] | None, config: FeatureConfig
+    ticks: Path,
+    out: Path,
+    symbols: list[str],
+    days: list[date] | None,
+    config: FeatureConfig,
+    jobs: int = 1,
+) -> list[dict]:
+    """`jobs` > 1 runs symbols in parallel processes (each symbol's days stay in order, since
+    a day's sweep threshold comes from the day before)."""
+    if jobs > 1 and len(symbols) > 1:
+        import multiprocessing
+        from concurrent.futures import ProcessPoolExecutor
+
+        # "spawn": forking a process that already runs Nautilus's native threads can hang.
+        ctx = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=jobs, mp_context=ctx) as pool:
+            parts = list(
+                pool.map(_run_symbol, *zip(*[(ticks, out, s, days, config) for s in symbols], strict=True))
+            )
+    else:
+        parts = [_run_symbol(ticks, out, s, days, config) for s in symbols]
+    rows = [r for part in parts for r in part]
+    write_summary(out, rows)
+    return rows
+
+
+def _run_symbol(
+    ticks: Path, out: Path, symbol: str, days: list[date] | None, config: FeatureConfig
 ) -> list[dict]:
     rows = []
-    for symbol in symbols:
-        available = trading_days(ticks, symbol)
-        last: tuple[date, float | None] | None = None  # last replayed day, its next_sweep_usd
-        for day in days or available:
-            before = [x for x in available if x < day]
-            carry = last[1] if last and before and before[-1] == last[0] else None
-            records: list[dict] = []
-            replay_day(ticks, symbol, day, config, records.append, sweep_usd=carry)
-            stats = next((r for r in records if r["type"] == "day_stats"), {})
-            last = (day, stats.get("next_sweep_usd"))
-            path = out / symbol / f"{day.isoformat()}.jsonl.gz"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with gzip.open(path, "wt", encoding="utf-8") as fh:
-                for r in records:
-                    fh.write(json.dumps(r) + "\n")
-            row = {"symbol": symbol, "day": day.isoformat()} | day_summary(records)
-            rows.append(row)
-            print(
-                f"{symbol} {day}: {row['trades']:,} trades, {row['large_prints']} large prints, "
-                f"{row['sweeps']} sweeps -> {path}",
-                flush=True,
-            )
-    write_summary(out, rows)
+    available = trading_days(ticks, symbol)
+    last: tuple[date, float | None] | None = None  # last replayed day, its next_sweep_usd
+    for day in days or available:
+        before = [x for x in available if x < day]
+        carry = last[1] if last and before and before[-1] == last[0] else None
+        records: list[dict] = []
+        replay_day(ticks, symbol, day, config, records.append, sweep_usd=carry)
+        stats = next((r for r in records if r["type"] == "day_stats"), {})
+        last = (day, stats.get("next_sweep_usd"))
+        path = out / symbol / f"{day.isoformat()}.jsonl.gz"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
+            for r in records:
+                fh.write(json.dumps(r) + "\n")
+        row = {"symbol": symbol, "day": day.isoformat()} | day_summary(records)
+        rows.append(row)
+        print(
+            f"{symbol} {day}: {row['trades']:,} trades, {row['large_prints']} large prints, "
+            f"{row['sweeps']} sweeps -> {path}",
+            flush=True,
+        )
     return rows
 
 
@@ -357,10 +382,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", type=Path, default=Path("data/features"))
     p.add_argument("--symbols", default="SPY,QQQ,AAPL,MSFT,NVDA")
     p.add_argument("--days", default="all", help="'all' or comma-separated YYYY-MM-DD")
+    p.add_argument("--jobs", type=int, default=1, help="symbols run in parallel (one process each)")
     a = p.parse_args(argv)
     days = None if a.days == "all" else [date.fromisoformat(x) for x in a.days.split(",")]
     a.out.mkdir(parents=True, exist_ok=True)
-    rows = run(a.ticks, a.out, a.symbols.split(","), days, FeatureConfig())
+    rows = run(a.ticks, a.out, a.symbols.split(","), days, FeatureConfig(), a.jobs)
     print(f"{len(rows)} symbol-days. Summary: {a.out / 'summary.md'}")
     return 0 if rows else 1
 

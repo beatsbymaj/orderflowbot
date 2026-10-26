@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awaiting review. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Order code exists only behind RiskGuard (`GuardedStrategy`); no strategy trades yet. See ROADMAP.md and DECISIONS.md.
+Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awaiting review; Phase 5 (signals + Jev gate) built 2026-10-26, real-data walk-forward pending on the operator's PC. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Order code exists only behind RiskGuard (`GuardedStrategy`); `OrderFlowStrategy` trades only setups explicitly enabled, and none is enabled until one passes the Phase 5 gate. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -47,6 +47,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Live stream watch (no trading): `docker compose --profile data run --rm live-watch` (docs/runbooks/live-stream.md)
 - Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
 - Kill switch / halts: `docker compose run --rm riskctl status|kill|release|reenable`; watchdog: `docker compose --profile paper up -d watchdog` (docs/runbooks/kill-switch.md)
+- Phase 5 walk-forward (offline, no orders): `docker compose --profile research run --rm walkforward` (`--jev` for the gate; docs/runbooks/walkforward.md). Hypotheses are pre-registered in docs/research/14; don't change them after seeing results.
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents

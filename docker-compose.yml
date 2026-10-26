@@ -114,6 +114,23 @@ services:
     volumes: ["./data:/app/data", "./reports:/app/reports"]
     command: ["python", "-m", "flowforge.features.parity", "--ticks", "data/ticks", "--symbol", "SPY", "--day", "2026-10-23"]
 
+  # Phase 5: walk-forward test of the pre-registered signals (docs/runbooks/walkforward.md).
+  # Offline, no orders. Add --jev to also test the Jev gate (needs TYPESAFE_API_KEY).
+  walkforward:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["research"]
+    environment:
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.research.walkforward", "--features", "data/features", "--ticks", "data/ticks", "--out", "reports/phase5"]
+
+  # Phase 5: fast simulator vs full Nautilus backtest on one stock-day.
+  crosscheck:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["research"]
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    entrypoint: ["python", "-m", "flowforge.research.crosscheck", "--ticks", "data/ticks", "--out", "reports/phase5"]
+
   # Phase 4: kill switch and halts (docs/runbooks/kill-switch.md). Anyone may turn it on:
   #   docker compose run --rm riskctl kill --reason "why"
   riskctl:
