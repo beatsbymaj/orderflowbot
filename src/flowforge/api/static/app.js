@@ -258,7 +258,7 @@
 
   // ---------- Health ----------
   async function health() {
-    const [h, rep, s] = await Promise.all([api('/api/health'), api('/api/reports'), statusCache ? Promise.resolve(statusCache) : api('/api/status')]);
+    const [h, rep, pp, s] = await Promise.all([api('/api/health'), api('/api/reports'), api('/api/paper'), statusCache ? Promise.resolve(statusCache) : api('/api/status')]);
     scope(s);
     const bad = h.checks.filter((c) => c.state === 'bad');
     const sub = bad.length ? `${plural(bad.length, 'problem')}: ${bad.map((c) => c.name).join(', ')}.` : 'Everything FlowForge depends on is answering.';
@@ -271,7 +271,29 @@
         </tbody></table></div></section>
         <section class="panel s4"><header><h2>Daily reports</h2><span class="meta">reports/daily</span></header>
           <ul class="rows">${rep.items.slice(0, 8).map((r) => `<li><span class="t">${esc(r.day.slice(5))}</span><div class="what">${r.kind === 'eod' ? 'End of day' : 'Pre-market check'} ${r.level === 'critical' ? '<span class="pill neg">Problem</span>' : ''}<span>${esc((r.checks || []).filter((c) => c.ok === false).map((c) => c.name).join(', ') || 'all clear')}</span></div></li>`).join('') || '<li><div class="empty" style="grid-column:1/-1">No reports yet. The daily service writes one at 09:00 and one after the close.</div></li>'}</ul></section>
+        ${paperGate(pp)}
       </div>`;
+  }
+
+  function paperGate(pp) {
+    const card = pp.scorecard;
+    const sub = card ? `${plural(card.trades, 'trade')} in ${plural(card.sessions, 'session')}` : 'after each close';
+    const yes = (ok) => (ok ? '<span class="pill pos">Met</span>' : '<span class="pill neg">Not yet</span>');
+    const DRILLS = [['instruments', 'symbols load from IBKR'], ['round-trip', 'buy 1, stop at IBKR, sell'], ['stop', 'stop triggers and sells'], ['takeover', 'watchdog sells after a crash'], ['restart', 'restart finds unknown shares']];
+    const last = (name) => pp.drills.find((d) => d.drill === name);
+    const drillRows = DRILLS.map(([name, what]) => {
+      const d = last(name);
+      const res = !d ? '<span class="pill">Not run</span>' : d.passed ? '<span class="pill pos">Pass</span>' : '<span class="pill neg">Fail</span>';
+      return `<li><span class="t">${d ? esc((d.started || '').slice(5, 10)) : '–'}</span><div class="what">${esc(name)} ${res}<span>${esc(d && d.failing.length ? d.failing.join(', ') : what)}</span></div></li>`;
+    });
+    const k = pp.soaks[0];
+    drillRows.push(`<li><span class="t">${k ? esc(k.file.slice(9, 11) + '-' + k.file.slice(11, 13)) : '–'}</span><div class="what">restart soak ${!k ? '<span class="pill">Not run</span>' : k.clean === k.cycles ? '<span class="pill pos">Pass</span>' : '<span class="pill neg">Fail</span>'}<span>${k ? `${k.clean} of ${k.cycles} restarts clean` : '8 stops and starts, each must come back clean'}</span></div></li>`);
+    return `
+        <section class="panel s8"><header><h2>Paper gate</h2><span class="meta">${sub}</span></header><div class="table-wrap"><table class="stack"><thead><tr><th>Phase 7 check</th><th>Result</th><th>Detail</th></tr></thead><tbody>
+          ${card ? card.checks.map((c) => `<tr><td>${esc(c.name)}</td><td class="key">${yes(c.ok)}</td><td class="more wrap">${esc(c.detail)}</td></tr>`).join('') : '<tr><td colspan="3" class="empty">No scorecard yet. It is written after the first paper session closes.</td></tr>'}
+        </tbody></table></div></section>
+        <section class="panel s4"><header><h2>Drills</h2><span class="meta">reports/paper</span></header>
+          <ul class="rows">${drillRows.join('')}</ul></section>`;
   }
 
   // ---------- Settings ----------

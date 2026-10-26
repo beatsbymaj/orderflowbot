@@ -286,9 +286,24 @@ def due(now_ns: int, done: dict[str, str]) -> list[str]:
     return jobs
 
 
+def write_scorecard(paths: Paths) -> Path:
+    """After the close: refresh the Phase 7 paper scorecard (reports/paper/scorecard.*)."""
+    from flowforge.config.risk_limits import load_risk_limits
+    from flowforge.ops import scorecard
+
+    card = scorecard.scorecard(paths.journals, load_risk_limits(paths.risk_limits).limits)
+    out = paths.reports.parent / "paper"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "scorecard.json").write_text(json.dumps(card, indent=2), encoding="utf-8")
+    (out / "scorecard.md").write_text(scorecard.markdown(card), encoding="utf-8")
+    return out / "scorecard.md"
+
+
 def run_job(job: str, paths: Paths, now_ns: int) -> Report:
     rep = premarket(paths, now_ns) if job == "premarket" else eod(paths, et_date(now_ns), now_ns)
     publish(rep, paths, now_ns)
+    if job == "eod":
+        write_scorecard(paths)
     return rep
 
 

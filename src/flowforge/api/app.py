@@ -561,6 +561,37 @@ def create_app(paths: ApiPaths | None = None, clock=wall_clock_ns, port_check=_p
                 items.append({k: data.get(k) for k in ("kind", "day", "level", "checks")})
         return {"items": items}
 
+    @app.get("/api/paper")
+    def paper_view() -> dict:
+        """Phase 7: the paper scorecard (refreshed after each close), drills and soak runs."""
+        folder = paths.reports / "paper"
+        card = _read_json(folder / "scorecard.json")
+        drills = []
+        for p in sorted(folder.glob("drill-*.json"), reverse=True)[:12] if folder.exists() else []:
+            data = _read_json(p)
+            if isinstance(data, dict):
+                failing = [c["name"] for c in data.get("checks", []) if c.get("ok") is False]
+                drills.append(
+                    {
+                        "drill": data.get("drill"),
+                        "started": data.get("started"),
+                        "passed": data.get("passed"),
+                        "failing": failing,
+                    }
+                )
+        soaks = []
+        for p in sorted(folder.glob("soak-*.json"), reverse=True)[:5] if folder.exists() else []:
+            data = _read_json(p)
+            if isinstance(data, list):
+                soaks.append(
+                    {
+                        "file": p.stem,
+                        "cycles": len(data),
+                        "clean": sum(1 for c in data if not c.get("problems")),
+                    }
+                )
+        return {"scorecard": card if isinstance(card, dict) else None, "drills": drills, "soaks": soaks}
+
     @app.post("/api/kill")
     def kill(
         body: KillBody, request: Request, x_flowforge_action: str | None = Header(default=None)

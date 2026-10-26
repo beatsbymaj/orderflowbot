@@ -144,7 +144,8 @@ td.id { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .rows li + li { border-top: 1px solid var(--rule); }
 .rows .t { color: var(--muted); font-family: var(--mono); font-size: 12px; }
 .rows .what { min-width: 0; }
-.rows .what span { display: block; color: var(--muted); font-size: var(--fs-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rows .what > span:not(.pill) { display: block; color: var(--muted); font-size: var(--fs-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rows .what .pill { height: 18px; margin-left: 6px; vertical-align: 1px; }
 
 /* ---------- controls: selection is a 1px accent line under the label ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: var(--control-height); padding: 0 16px; border-radius: var(--radius-control); border: 1px solid var(--control); background: transparent; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background-color var(--t-hover) ease, border-color var(--t-hover) ease; }

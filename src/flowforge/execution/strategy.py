@@ -235,19 +235,22 @@ class GuardedStrategy(Strategy):
     def request_entry(self, req: EntryRequest) -> RiskDecision:
         now = self.clock.timestamp_ns()
         self._ensure_day(now)
-        decision = self.guard.check_entry(
-            req,
-            self.market_view(req.symbol) if req.symbol in self.market else MarketView(req.symbol, None),
-            self.universe.get(req.symbol),
-            self.account_view(),
-            now,
-        )
+        iid = instrument_id(req.symbol)
+        instrument = self.cache.instrument(iid)
+        if instrument is None:  # live: the broker never sent this contract, so no order can be priced
+            decision = RiskDecision(False, ("instrument not loaded from the broker",))
+        else:
+            decision = self.guard.check_entry(
+                req,
+                self.market_view(req.symbol) if req.symbol in self.market else MarketView(req.symbol, None),
+                self.universe.get(req.symbol),
+                self.account_view(),
+                now,
+            )
         self._journal("risk_decision", intent=req.intent_id, symbol=req.symbol, **decision.as_dict())
         if not decision.allowed:
             return decision
         plan = decision.plan
-        iid = instrument_id(req.symbol)
-        instrument = self.cache.instrument(iid)
         entry = self.order_factory.limit(
             iid,
             OrderSide.BUY,

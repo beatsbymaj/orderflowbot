@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awaiting review; Phase 5 (signals + Jev gate) built 2026-10-26, real-data walk-forward pending on the operator's PC; Phase 6 (dashboard, alerts, daily reports) built 2026-10-26, operator walkthrough pending. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Order code exists only behind RiskGuard (`GuardedStrategy`); `OrderFlowStrategy` trades only setups explicitly enabled, and none is enabled until one passes the Phase 5 gate. See ROADMAP.md and DECISIONS.md.
+Phases 1–3 merged 2026-10-25; Phases 4–7 built 2026-10-26 on PR #5 (Phase 7: paper node, drills, soak, scorecard; nothing run on IBKR paper yet). Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Open: live feed (free plan = IEX only) and the day-trade rule for the $10k paper account. Phase 5 real-data walk-forward runs on the operator's PC. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -50,6 +50,8 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Phase 5 walk-forward (offline, no orders): `docker compose --profile research run --rm walkforward` (`--jev` for the gate; docs/runbooks/walkforward.md). Hypotheses are pre-registered in docs/research/14; don't change them after seeing results.
 - Dashboard (read only + kill ON): `docker compose --profile paper up -d dashboard` → http://localhost:8080; demo data: `docker compose --profile demo up --build dashboard-demo` (docs/runbooks/dashboard.md)
 - Phone alerts and daily reports: `docker compose --profile paper up -d alerts daily` (docs/runbooks/alerts.md, daily-ops.md)
+- Paper node: `docker compose --profile paper run --rm node --preflight`, then `docker compose --profile paper up -d node` (docs/runbooks/paper-node.md)
+- Paper drills / soak: `docker compose --profile drill run --rm paper-drill instruments|round-trip|stop|takeover|restart`, `... paper-soak` (docs/runbooks/paper-drills.md); scorecard: `docker compose --profile check run --rm scorecard`
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents

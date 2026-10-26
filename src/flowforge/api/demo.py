@@ -436,6 +436,13 @@ def write_demo(out: Path, config_src: Path = Path("config"), now: datetime | Non
             }
         )
     )
+    from flowforge.ops import scorecard
+
+    # The Phase 7 scorecard of the one invented day: far from the gate, as it should be.
+    limits = load_risk_limits(out / "config" / "risk_limits.yaml").limits
+    card = scorecard.scorecard(out / "data" / "journal", limits, day.isoformat())
+    (out / "reports" / "paper").mkdir(parents=True)
+    (out / "reports" / "paper" / "scorecard.json").write_text(json.dumps(card, indent=2))
     beat(out, day)
     return day
 

@@ -127,6 +127,8 @@ def test_schedule_runs_each_job_once_per_trading_day(tmp_path):
     p = paths(tmp_path)
     rep = run_job("eod", p, at(2026, 10, 27, 16, 15))
     assert rep.kind == "eod" and (p.reports / "2026-10-27-eod.md").exists()
+    card = json.loads((p.reports.parent / "paper" / "scorecard.json").read_text())
+    assert card["trades"] == 0 and card["passes"] is False
 
 
 def test_cli(monkeypatch, tmp_path, capsys):

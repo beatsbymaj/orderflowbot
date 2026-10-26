@@ -253,3 +253,33 @@ def test_entry_point_builds_the_app_without_serving(monkeypatch, tmp_path):
     assert api_main.main(["--demo", str(tmp_path / "demo"), "--port", "9999"]) == 0
     assert seen["port"] == 9999 and seen["host"] == "127.0.0.1"
     assert api_main.main(["--root", str(tmp_path), "--run-dir", str(tmp_path / "run")]) == 0
+
+
+def test_paper_gate_view(demo):
+    client, root, _ = demo
+    d = client.get("/api/paper").json()
+    assert d["scorecard"]["trades"] == 2 and d["scorecard"]["passes"] is False
+    assert d["drills"] == [] and d["soaks"] == []
+    paper = root / "reports" / "paper"
+    (paper / "drill-round-trip-2026-10-27T150000Z.json").write_text(
+        json.dumps(
+            {
+                "drill": "round-trip",
+                "started": "2026-10-27T15:00:00Z",
+                "passed": False,
+                "checks": [{"name": "IOC entry filled", "ok": False}, {"name": "x", "ok": True}],
+            }
+        )
+    )
+    (paper / "drill-broken-x.json").write_text("[]")
+    (paper / "soak-20261027T200000Z.json").write_text(json.dumps([{"problems": []}, {"problems": ["kill"]}]))
+    d = client.get("/api/paper").json()
+    assert d["drills"] == [
+        {
+            "drill": "round-trip",
+            "started": "2026-10-27T15:00:00Z",
+            "passed": False,
+            "failing": ["IOC entry filled"],
+        }
+    ]
+    assert d["soaks"] == [{"file": "soak-20261027T200000Z", "cycles": 2, "clean": 1}]

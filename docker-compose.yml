@@ -158,6 +158,60 @@ services:
       ib-gateway: {condition: service_healthy}
     command: ["python", "-m", "flowforge.ops.watchdog"]
 
+  # Phase 7: the paper trading node (docs/runbooks/paper-node.md). IBKR paper only: it refuses
+  # anything else. Only setups that passed the walk-forward can trade; with none it runs in
+  # shadow (features and signals journaled, no entries). Extra flags: PAPER_NODE_ARGS in .env.
+  node:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: "no"          # a crashed node stays down: the watchdog flattens, a human restarts it
+    environment: &paper-env
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      IB_CLIENT_ID: "${IB_NODE_CLIENT_ID:-11}"   # the watchdog uses the same id (ADR-0013)
+      IB_TRADING_MODE: paper
+      IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
+      ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
+      ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
+      ALPACA_FEED: ${ALPACA_FEED:-sip}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}    # only used when config/jev.yaml enables the gate
+      FLOWFORGE_RUN_DIR: /var/run/flowforge
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.paper_node"]
+    command: ${PAPER_NODE_ARGS:---symbols=SPY,QQQ,AAPL,MSFT,NVDA}
+
+  # Phase 7 drills on IBKR paper, 1 share of SPY each (docs/runbooks/paper-drills.md).
+  # Stop `node` and `watchdog` first:  docker compose --profile drill run --rm paper-drill round-trip
+  paper-drill:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["drill"]
+    environment: *paper-env
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.paper_drills"]
+    command: ["instruments"]
+
+  # Phase 7 restart soak: stops and restarts the paper node, checks each restart is clean.
+  paper-soak:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["drill"]
+    environment: *paper-env
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.soak"]
+    command: ["--cycles", "8"]
+
+  # Phase 7 gate: the paper scorecard from the journals (also refreshed by `daily` after each close).
+  scorecard:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["check"]
+    volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.ops.scorecard"]
+
   # Phase 6: dashboard on http://localhost:8080 (docs/runbooks/dashboard.md). Read only,
   # except the kill switch button, which can only turn the switch ON.
   dashboard:
