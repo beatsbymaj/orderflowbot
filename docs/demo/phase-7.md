@@ -40,7 +40,9 @@ test below is offline (simulated venue, fakes for the gateway). The drills, the 
    comparable with the SIP walk-forward. Operator decision.
 3. **Day-trade rule.** `legacy_pdt` with $10,000 caps paper at ~3 trades a week; 100 trades
    would take most of a year. Operator decision (check IBKR's regime, reset the paper
-   balance, or accept a longer stage).
+   balance, or accept a longer stage). Since 2026-10-26 there is also `pdt_regime: cash`
+   for a cash account: no day-trade count, buys limited to settled cash (T+1). The operator
+   switches it in risk_limits.yaml after confirming the account type.
 4. **No setup may trade yet.** The Phase 5 real-data walk-forward still has to run on the PC.
    Until a setup passes, paper runs in shadow and the gate can't be met.
 5. The watchdog can't flatten while a live node holds the client id (ADR-0013); the restart

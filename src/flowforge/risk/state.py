@@ -19,7 +19,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from flowforge.config.risk_limits import RiskLimits
-from flowforge.risk.calendar import is_trading_day
+from flowforge.risk.calendar import is_trading_day, next_trading_day
 
 PDT_WINDOW_DAYS = 5
 # Claude default (not in risk_limits.yaml): this many rejected or denied entries in a row
@@ -65,6 +65,7 @@ class RiskState:
         self.entries_by_day: dict[str, int] = {}
         self.seen_intents: set[str] = set()
         self.consecutive_rejects = 0
+        self.unsettled: list[dict] = []  # sale proceeds not yet settled: {"settles": iso, "amount": usd}
         self._load()
 
     # -- persistence ------------------------------------------------------------------
@@ -83,6 +84,10 @@ class RiskState:
             self.entries_by_day = {str(k): int(v) for k, v in data.get("entries_by_day", {}).items()}
             self.seen_intents = set(data.get("seen_intents", []))
             self.consecutive_rejects = int(data.get("consecutive_rejects", 0))
+            self.unsettled = [
+                {"settles": date.fromisoformat(u["settles"]).isoformat(), "amount": float(u["amount"])}
+                for u in data.get("unsettled", [])
+            ]
         except (OSError, ValueError, KeyError, TypeError) as exc:
             self.weekly_halt = Halt("state", f"risk state file unreadable: {exc}", _now_iso(), "")
 
@@ -99,6 +104,7 @@ class RiskState:
             "entries_by_day": self.entries_by_day,
             "seen_intents": sorted(self.seen_intents),
             "consecutive_rejects": self.consecutive_rejects,
+            "unsettled": self.unsettled,
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(self.path.suffix + ".tmp")
@@ -122,6 +128,7 @@ class RiskState:
             self.week_peak_equity = equity  # the weekly halt itself is only cleared by the operator
         keep = {d.isoformat() for d in trading_days_back(day, PDT_WINDOW_DAYS)}
         self.entries_by_day = {d: n for d, n in self.entries_by_day.items() if d in keep}
+        self.unsettled = [u for u in self.unsettled if u["settles"] > day.isoformat()]
         self.save()
 
     def on_equity(self, equity: float) -> str | None:
@@ -184,6 +191,20 @@ class RiskState:
         key = self.day.isoformat()
         self.entries_by_day[key] = self.entries_by_day.get(key, 0) + 1
         self.save()
+
+    def record_sale(self, amount: float, trade_day: date) -> None:
+        """Sale proceeds settle on the next trading day (T+1). Until then a cash account may
+        not buy with them (good-faith violation), so RiskGuard leaves them out."""
+        if amount <= 0:
+            return
+        self.unsettled.append(
+            {"settles": next_trading_day(trade_day).isoformat(), "amount": round(amount, 2)}
+        )
+        self.save()
+
+    def unsettled_cash(self, day: date | None = None) -> float:
+        on = (day or self.day or date.min).isoformat()
+        return round(sum(u["amount"] for u in self.unsettled if u["settles"] > on), 2)
 
     def record_reject(self, reason: str) -> bool:
         """Count a rejected or denied entry; True when this one trips the error halt."""

@@ -49,3 +49,20 @@ Source: https://www.interactivebrokers.com/campus/trading-lessons/using-ibkrs-pa
   new intraday margin rules (docs/research/05: FINRA replaced PDT on 2026-06-04; brokers may
   move accounts over until 2027-10-20). risk_limits.yaml keeps `legacy_pdt` until the
   operator confirms the account's regime.
+
+## Cash-account mode (`pdt_regime: cash`, added 2026-10-26 at the operator's request)
+Rules (docs/research/05, VERIFIED at the regulatory level): a cash account has no day-trade
+count; sales settle T+1; buying with unsettled proceeds and selling before they settle is a
+good-faith violation; freeriding can bring a 90-day freeze.
+- What FlowForge does: every sale fill is recorded in the risk state as "settles next trading
+  day". RiskGuard sizes each buy by `by_settled_cash` = broker cash - pending buys - sales not
+  yet settled. In practice the bot can buy about the account's settled cash once a day
+  (with $10,000: about $10,000 of buys a day, any number of trades inside that).
+- The walk-forward account replay and the backtest LimitBook apply the same rule.
+- **UNVERIFIED:** whether IBKR's reported free cash already leaves out unsettled proceeds
+  (IBKR's cash-account pages redirect and couldn't be read on 2026-10-26). If it does, the
+  bot subtracts them twice, which only makes it buy less (safe side).
+- **UNVERIFIED:** whether the IBKR paper account behaves like a cash account when the live
+  account is one. Check in Client Portal (Settings, Account type) before relying on it.
+- Sales made by the independent watchdog aren't recorded (it doesn't use the risk state);
+  they happen only in emergencies, after which trading is halted anyway.

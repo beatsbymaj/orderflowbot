@@ -285,3 +285,13 @@ def test_after_the_kill_window_only_the_watchdog_sells(limits, tmp_path):
     assert any("the watchdog owns flattening now" in m for m in r.alerts("critical"))
     assert [f["side"] for f in r.events("fill")] == ["BUY"]
     assert not r.events("cancel")  # stop left in place for the watchdog
+
+
+def test_sale_proceeds_are_recorded_as_unsettled_once(limits, tmp_path):
+    ticks = flat_then(lambda i: 100.0 + 0.05 * i)
+    r = run_sim(limits, to_data("SPY", ticks), [(T, EntryRequest("s1", "SPY", 99.0, 101.0))], tmp_path)
+    closed = r.events("position_closed")
+    assert len(closed) == 1
+    sells = [u for u in r.state.unsettled]
+    assert len(sells) >= 1 and all(u["settles"] == "2026-10-28" for u in sells)  # T+1
+    assert r.state.unsettled_cash() == round(sum(u["amount"] for u in sells), 2) > 0

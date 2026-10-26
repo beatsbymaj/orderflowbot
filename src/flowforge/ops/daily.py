@@ -172,6 +172,13 @@ def premarket(paths: Paths, now_ns: int, port_check=None) -> Report:
         used = state.day_trades_in_window()
         left = max(0, limits.trading.legacy_pdt_max_day_trades - used)
         rep.add("Day trades left", None, f"{left} of {limits.trading.legacy_pdt_max_day_trades} in 5 days")
+    if limits.trading.pdt_regime == "cash":
+        waiting = state.unsettled_cash(day)
+        rep.add(
+            "Settled cash",
+            None,
+            f"{waiting:,.2f} USD of sales still settling (T+1); buys use settled cash only",
+        )
     free_gb = shutil.disk_usage(paths.data if paths.data.exists() else Path(".")).free / 1e9
     rep.add("Disk space", free_gb >= MIN_FREE_GB, f"{free_gb:.1f} GB free")
     jev = _read_yaml_flag(paths.jev)

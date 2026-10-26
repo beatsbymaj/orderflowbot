@@ -252,6 +252,19 @@ def create_app(paths: ApiPaths | None = None, clock=wall_clock_ns, port_check=_p
                     "note": "pattern day trader rule while the account is under $25,000",
                 }
             )
+        if lim.trading.pdt_regime == "cash":
+            if state.day is None:
+                state.day = et_date(now)
+            budget.append(
+                {
+                    "key": "unsettled",
+                    "label": "Sales still settling",
+                    "used": state.unsettled_cash(),
+                    "limit": None,
+                    "unit": "usd",
+                    "note": "cash account: sales settle next trading day; buys use settled cash only",
+                }
+            )
         held = len(beat.positions) if beat else 0
         budget.append(
             {

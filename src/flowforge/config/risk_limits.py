@@ -34,6 +34,7 @@ class RiskLimitsError(ValueError):
 class PdtRegime(StrEnum):
     LEGACY_PDT = "legacy_pdt"
     INTRADAY_MARGIN = "intraday_margin"
+    CASH = "cash"  # cash account: no day-trade count, buys only with settled cash (T+1)
 
 
 class _Frozen(BaseModel):

@@ -180,3 +180,41 @@ def test_feature_replay_runs_symbols_in_parallel(tmp_path):
     rows = replay(tmp_path / "ticks", tmp_path / "f", ["AAPL", "MSFT"], None, FeatureConfig(), jobs=2)
     assert [r["symbol"] for r in rows] == ["AAPL", "MSFT"]
     assert (tmp_path / "f" / "MSFT" / "2026-10-23.jsonl.gz").exists()
+
+
+def test_account_replay_cash_account_caps_buys_at_settled_cash(limits):
+    from conftest import with_limits
+
+    from flowforge.config.risk_limits import PdtRegime
+    from flowforge.research.fastsim import Trade
+
+    def trade(i, day="2026-10-27"):
+        start = et_ns(10, 0) + i * 120 * 10**9
+        return Trade(
+            "H1",
+            f"S{i}",
+            day,
+            "c",
+            start,
+            start,
+            100.0,
+            1,
+            99.0,
+            102.0,
+            start + 60 * 10**9,
+            100.5,
+            "target",
+            0.5,
+            0.0,
+            0.5,
+            0.5,
+        )
+
+    many = [trade(i) for i in range(14)]
+    trading = {"max_trades_per_day": 50}
+    cash = with_limits(limits, "trading", pdt_regime=PdtRegime.CASH, **trading)
+    margin = with_limits(limits, "trading", pdt_regime=PdtRegime.INTRADAY_MARGIN, **trading)
+    c, m = wf.account_replay(many, cash), wf.account_replay(many, margin)
+    assert c["trades_skipped"].get("settled cash used up for the day", 0) >= 1
+    assert "settled cash used up for the day" not in m["trades_skipped"]
+    assert "legacy PDT day-trade limit" not in c["trades_skipped"]

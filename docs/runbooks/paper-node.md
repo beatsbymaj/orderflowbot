@@ -27,6 +27,11 @@ enabled". That is still useful: it tests the plumbing for weeks before any trade
 5. **Day-trade rule.** risk_limits.yaml says `pdt_regime: legacy_pdt`: under $25,000 equity
    only 3 day trades in 5 business days. RiskGuard refuses the 4th. With the $10,000 paper
    account that caps paper at about 3 trades a week. Only you can change that file.
+   **Cash account option:** if your IBKR account is a *Cash* account (Client Portal,
+   Settings, Account type), set `pdt_regime: cash`. Then there is no day-trade count, but
+   each day the bot only buys with *settled* cash (money from a sale arrives the next
+   trading day). With $10,000 that is about $10,000 of buys a day. The pre-market check and
+   the dashboard show how much sale money is still settling. Restart the node after the edit.
 
 ## Every trading day (PowerShell, in the repo folder)
 1. Start Docker Desktop and wait for "running".

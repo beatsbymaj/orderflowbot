@@ -61,3 +61,7 @@
   most of a year. Options: confirm the IBKR account is on the new intraday-margin regime and
   change `pdt_regime` (operator-only edit), reset the paper balance in Client Portal
   (then live must match it), or accept a longer paper stage.
+  Added 2026-10-26 at the operator's request: `pdt_regime: cash` for a cash account (no
+  day-trade count; RiskGuard, the backtest and the walk-forward replay cap each day's buys
+  at settled cash, sales settling T+1). Switching to it is still the operator's edit,
+  after confirming the IBKR account type. docs/research/16.

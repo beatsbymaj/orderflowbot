@@ -210,3 +210,19 @@ def test_round_down_and_quote_math():
     assert round_down(100.12002, 0.01) == 100.12
     assert round_down(100.13, 0.01) == 100.13
     assert QuoteView(0, 0, 0, 0, 0).spread_bps == math.inf
+
+
+def test_cash_account_buys_only_with_settled_cash(limits):
+    cash = with_limits(limits, "trading", pdt_regime=PdtRegime.CASH)
+    g = make_guard(cash)
+    for i in range(5):  # no day-trade count in a cash account
+        g.state.record_entry(f"x{i}")
+    d = check(g, req=request("new"))
+    assert d.allowed and "pattern day trader limit" not in d.reasons
+    assert d.sizing["by_settled_cash"] == math.floor(10_000 / 100.12)
+    g.state.record_sale(9_700.0, DAY)  # today's sales settle tomorrow
+    d = check(g, req=request("new2"))
+    assert d.sizing["by_settled_cash"] == 2 and d.plan.quantity == 2  # $300 / 100.12
+    g.state.record_sale(300.0, DAY)
+    assert "size rounds to zero shares" in check(g, req=request("new3")).reasons
+    assert "by_settled_cash" not in check(make_guard(limits), req=request("new4")).sizing

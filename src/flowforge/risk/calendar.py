@@ -10,7 +10,7 @@ guard refuses entries on it (fail closed) until this table is extended from the 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 ET = ZoneInfo("America/New_York")
@@ -67,6 +67,17 @@ def session_for(day: date) -> Session | None:
 
 def session_at(ts_ns: int) -> Session | None:
     return session_for(et_date(ts_ns))
+
+
+def next_trading_day(day: date) -> date:
+    """The first trading day after `day` (T+1 settlement). Past the known years it keeps
+    walking, so proceeds never settle early: unknown dates aren't trading days."""
+    d = day + timedelta(days=1)
+    for _ in range(10):
+        if is_trading_day(d):
+            return d
+        d += timedelta(days=1)
+    return d
 
 
 def is_trading_day(day: date) -> bool:

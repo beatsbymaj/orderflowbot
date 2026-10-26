@@ -171,6 +171,7 @@ def account_replay(trades: list[Trade], limits: RiskLimits, equity: float = STAR
     week = None
     halted_day = halted_week = False
     taken_by_day: dict[str, int] = {}
+    spent_by_day: dict[str, float] = {}  # cash account: buys today, paid from settled cash
     skipped: dict[str, int] = {}
     curve: list[tuple[str, float]] = []
     pnls: list[float] = []
@@ -230,6 +231,14 @@ def account_replay(trades: list[Trade], limits: RiskLimits, equity: float = STAR
         )
         gross_room = pf.max_gross_exposure_pct / 100 * equity - sum(p[2] for p in open_pos)
         shares = min(shares, int(max(gross_room, 0) // t.entry))
+        if tr.pdt_regime == "cash":
+            # Flat every night, so the day's settled cash is the day's starting equity; sales
+            # today settle T+1 and can't fund another buy today.
+            settled = day_start - spent_by_day.get(d, 0.0)
+            if int(max(settled, 0) // t.entry) < 1:
+                skip("settled cash used up for the day")
+                continue
+            shares = min(shares, int(max(settled, 0) // t.entry))
         if shares < 1:
             skip("size below one share")
             continue
@@ -238,6 +247,7 @@ def account_replay(trades: list[Trade], limits: RiskLimits, equity: float = STAR
         fees_total += fees
         pnls.append(pnl)
         taken_by_day[d] = taken_by_day.get(d, 0) + 1
+        spent_by_day[d] = spent_by_day.get(d, 0.0) + shares * t.entry
         open_pos.append((t.exit_ts, t.symbol, shares * t.entry))
         pending.append((t.exit_ts, pnl))
     realise(2**62)

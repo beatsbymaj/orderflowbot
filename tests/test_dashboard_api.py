@@ -103,6 +103,13 @@ def test_flat_and_empty_days(tmp_path):
     s = client.get("/api/status").json()
     assert s["finding"] == "Flat, no trades yet today." and s["equity"] is None and s["equity_curve"] == []
     assert [b["key"] for b in s["budget"]] == ["trades", "day_trades", "positions"]
+    limits = tmp_path / "config" / "risk_limits.yaml"
+    limits.write_text(limits.read_text().replace("pdt_regime: legacy_pdt", "pdt_regime: cash"))
+    cash = TestClient(create_app(paths, clock=lambda: at(10, 0), port_check=lambda h, p: False))
+    budget = cash.get("/api/status").json()["budget"]
+    assert [b["key"] for b in budget] == ["trades", "unsettled", "positions"]
+    assert budget[1]["used"] == 0 and budget[1]["limit"] is None
+    limits.write_text(limits.read_text().replace("pdt_regime: cash", "pdt_regime: legacy_pdt"))
     j = Journal(tmp_path / "data" / "journal" / "node")
     j.write(
         at(9, 50), "risk_decision", intent="H4:SPY:1", allowed=True, plan={"stop_price": 9.0, "quantity": 1}

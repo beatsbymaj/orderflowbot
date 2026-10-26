@@ -119,3 +119,27 @@ def test_kill_switch_fails_closed_when_unreadable(tmp_path, monkeypatch):
 
     monkeypatch.setattr("flowforge.risk.killswitch.os.stat", denied)
     assert KillSwitch(tmp_path / "KILL").is_engaged()
+
+
+def test_sale_proceeds_settle_next_trading_day_and_persist(limits, tmp_path):
+    s = RiskState(limits, tmp_path / "state.json")
+    fri = date(2026, 10, 23)
+    s.start_day(fri, 10_000.0)
+    s.record_sale(0.0, fri)  # nothing to settle
+    s.record_sale(1_234.567, fri)
+    assert s.unsettled == [{"settles": "2026-10-26", "amount": 1234.57}]  # Friday -> Monday
+    assert s.unsettled_cash() == 1234.57
+    again = RiskState(limits, tmp_path / "state.json")
+    assert again.unsettled_cash(fri) == 1234.57
+    assert again.unsettled_cash(date(2026, 10, 26)) == 0.0  # settled on Monday
+    again.start_day(date(2026, 10, 26), 10_000.0)
+    assert again.unsettled == []
+
+
+def test_next_trading_day_skips_weekends_and_holidays():
+    from flowforge.risk.calendar import next_trading_day
+
+    assert next_trading_day(date(2026, 10, 27)) == date(2026, 10, 28)
+    assert next_trading_day(date(2026, 11, 25)) == date(2026, 11, 27)  # Thanksgiving
+    far = next_trading_day(date(2099, 1, 1))  # beyond the known calendar: never early
+    assert far > date(2099, 1, 1)

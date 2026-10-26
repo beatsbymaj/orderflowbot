@@ -269,6 +269,13 @@ class RiskGuard:
             ),
             "by_volume": math.floor(market.avg_minute_volume * lim.per_trade.max_pct_of_recent_volume / 100),
         }
+        if lim.trading.pdt_regime == PdtRegime.CASH:
+            # Cash account: only settled cash may buy. The broker's cash still counts today's
+            # sale proceeds, which settle T+1; buying with them is a good-faith violation.
+            settled = (
+                account.cash_available - sum(account.pending_entries.values()) - self.state.unsettled_cash()
+            )
+            sizing["by_settled_cash"] = math.floor(max(0.0, settled) / price)
         if req.max_quantity is not None:
             sizing["by_strategy"] = req.max_quantity
         return {k: max(0, v) for k, v in sizing.items()}

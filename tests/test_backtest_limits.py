@@ -121,3 +121,16 @@ def test_weekly_drawdown_halts_until_next_week():
     assert _check(book).reason == "weekly drawdown halt"
     book.start_day(DAY + timedelta(days=7))
     assert _check(book).allowed
+
+
+def test_cash_account_spends_settled_cash_once_a_day():
+    book = _book(trading__pdt_regime="cash", trading__max_trades_per_day=50)
+    for s in "ABCDEFGHIJ":  # ten buys of $1000: the day's settled cash
+        d = _check(book, symbol=s)
+        assert d.allowed and d.sizing["by_settled_cash"] >= 10, d
+        book.record_entry(s, 1_000.0)
+        book.record_exit(s, 0.0)
+    d = _check(book, symbol="K")
+    assert not d.allowed and d.sizing["by_settled_cash"] == 0
+    book.start_day(DAY + timedelta(days=1))  # yesterday's sales have settled
+    assert _check(book, symbol="K").allowed

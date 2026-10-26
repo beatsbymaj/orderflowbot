@@ -89,7 +89,7 @@
       <div class="grid" style="margin-top:24px">
         <section class="panel s8" id="eq-panel"><header><h2>Equity today</h2><span class="meta">${floor ? `Daily loss stop at ${num(floor)} USD` : ''}</span></header><div class="chart" id="eq"></div></section>
         <section class="panel s4" id="budget-panel"><header><h2>Risk budget</h2><span class="meta">from risk_limits.yaml</span></header>
-          <ul class="budget">${s.budget.map((b) => `<li><div class="top"><span>${esc(b.label)}</span><span class="fig">${b.unit === 'usd' ? num(b.used) : b.used}<small> of ${b.unit === 'usd' ? num(b.limit) : b.limit}</small></span></div>${track(b.used, b.limit)}<span class="why">${esc(b.note)}</span></li>`).join('')}</ul>
+          <ul class="budget">${s.budget.map((b) => `<li><div class="top"><span>${esc(b.label)}</span><span class="fig">${b.unit === 'usd' ? num(b.used) : b.used}${b.limit == null ? '' : `<small> of ${b.unit === 'usd' ? num(b.limit) : b.limit}</small>`}</span></div>${b.limit == null ? '' : track(b.used, b.limit)}<span class="why">${esc(b.note)}</span></li>`).join('')}</ul>
         </section>
         <section class="panel s8" id="trades-panel"><header><h2>Trades today</h2><a class="meta" href="#/journal">Journal</a></header>
           <div class="table-wrap"><table class="stack"><thead><tr><th>Symbol</th><th>Result</th><th class="n">Shares</th><th class="n">Entry</th><th class="n">Stop</th><th class="n">Exit / last</th><th class="n">Net USD</th><th class="n">R</th></tr></thead><tbody>

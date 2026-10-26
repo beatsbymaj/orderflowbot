@@ -139,3 +139,20 @@ def test_cli(monkeypatch, tmp_path, capsys):
     assert "Pre-market check" in capsys.readouterr().out
     assert daily.main(["eod", "--day", "2026-10-27"]) in (0, 1)
     assert (tmp_path / "reports" / "daily" / "2026-10-27-eod.md").exists()
+
+
+def test_premarket_on_a_cash_account_shows_settling_cash(tmp_path):
+    from flowforge.config.risk_limits import load_risk_limits
+    from flowforge.risk.state import RiskState
+
+    p = paths(tmp_path)
+    p.risk_limits.write_text(p.risk_limits.read_text().replace("pdt_regime: legacy_pdt", "pdt_regime: cash"))
+    state = RiskState(load_risk_limits(p.risk_limits).limits, p.state)
+    state.start_day(date(2026, 10, 26), 10_000.0)
+    state.record_sale(1_500.0, date(2026, 10, 26))
+    now = at(2026, 10, 27, 9, 0)
+    c = checks(premarket(p, now, port_check=lambda h, port: True))
+    assert "Day trades left" not in c
+    assert c["Settled cash"][1].startswith("0.00 USD of sales still settling")  # Monday's sales settled
+    c = checks(premarket(p, at(2026, 10, 26, 15, 0), port_check=lambda h, port: True))
+    assert c["Settled cash"][1].startswith("1,500.00 USD")

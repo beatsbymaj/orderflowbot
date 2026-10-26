@@ -12,7 +12,8 @@ through RiskGuard, like any other trade. Paper only: the drills refuse anything 
 - Day trades: each order drill is a day trade. Under the current `legacy_pdt` setting the
   account gets 3 in 5 business days, and the trading node needs them too. Spread the drills
   over several days, or run them before paper trading starts. RiskGuard refuses a drill
-  that would go over; the report then says "refused by risk".
+  that would go over; the report then says "refused by risk". With `pdt_regime: cash` there
+  is no count; each drill uses about $700 of settled cash.
 
 ## The drills, in order (PowerShell, in the repo folder)
 ```powershell

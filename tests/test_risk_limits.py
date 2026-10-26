@@ -133,3 +133,9 @@ def test_loaded_result_is_frozen(tmp_path):
     assert isinstance(loaded, LoadedRiskLimits)
     with pytest.raises(FrozenInstanceError):
         loaded.sha256 = "x"  # type: ignore[misc]
+
+
+def test_cash_account_regime_is_accepted(tmp_path):
+    data = _base()
+    data["trading"]["pdt_regime"] = "cash"
+    assert load_risk_limits(_write(tmp_path, data)).limits.trading.pdt_regime is PdtRegime.CASH

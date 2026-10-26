@@ -120,6 +120,7 @@ class GuardedStrategy(Strategy):
         self._last_tick_ns: int | None = None
         self._last_mark_ns: int | None = None
         self.frozen = False
+        self._sale_fills: set[str] = set()
 
     # -- lifecycle --------------------------------------------------------------------
     def on_start(self) -> None:
@@ -338,6 +339,11 @@ class GuardedStrategy(Strategy):
             commission=event.commission.as_double() if event.commission else 0.0,
             complete=complete,
         )
+        fill_id = str(event.trade_id)
+        if event.order_side == OrderSide.SELL and fill_id not in self._sale_fills:
+            self._sale_fills.add(fill_id)  # T+1: a cash account can't rebuy with this until it settles
+            proceeds = event.last_qty.as_double() * event.last_px.as_double()
+            self.risk_state.record_sale(proceeds, et_date(event.ts_event))
         self._run(
             self.manager.on_filled(
                 self._id(event),
