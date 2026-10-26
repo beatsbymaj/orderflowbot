@@ -63,7 +63,7 @@ def test_status_tells_one_story(demo):
         "daily_loss": (4.15, 200.0),
         "weekly_drawdown": (25.55, 501.07),
         "trades": (3, 10),
-        "day_trades": (3, 3),
+        "unsettled": (0, None),
         "positions": (1, 3),
     }
     assert s["today"]["net"] == -3.99 and s["positions"][0]["unrealized"] == 0.84
@@ -102,14 +102,17 @@ def test_flat_and_empty_days(tmp_path):
     write_heartbeat(tmp_path / "run" / "heartbeat.json", Heartbeat(at(10, 0), "n", {}, 0))
     s = client.get("/api/status").json()
     assert s["finding"] == "Flat, no trades yet today." and s["equity"] is None and s["equity_curve"] == []
-    assert [b["key"] for b in s["budget"]] == ["trades", "day_trades", "positions"]
+    assert [b["key"] for b in s["budget"]] == ["trades", "unsettled", "positions"]
+    assert s["budget"][1]["used"] == 0 and s["budget"][1]["limit"] is None
     limits = tmp_path / "config" / "risk_limits.yaml"
-    limits.write_text(limits.read_text().replace("pdt_regime: legacy_pdt", "pdt_regime: cash"))
-    cash = TestClient(create_app(paths, clock=lambda: at(10, 0), port_check=lambda h, p: False))
-    budget = cash.get("/api/status").json()["budget"]
-    assert [b["key"] for b in budget] == ["trades", "unsettled", "positions"]
-    assert budget[1]["used"] == 0 and budget[1]["limit"] is None
     limits.write_text(limits.read_text().replace("pdt_regime: cash", "pdt_regime: legacy_pdt"))
+    legacy = TestClient(create_app(paths, clock=lambda: at(10, 0), port_check=lambda h, p: False))
+    assert [b["key"] for b in legacy.get("/api/status").json()["budget"]] == [
+        "trades",
+        "day_trades",
+        "positions",
+    ]
+    limits.write_text(limits.read_text().replace("pdt_regime: legacy_pdt", "pdt_regime: cash"))
     j = Journal(tmp_path / "data" / "journal" / "node")
     j.write(
         at(9, 50), "risk_decision", intent="H4:SPY:1", allowed=True, plan={"stop_price": 9.0, "quantity": 1}

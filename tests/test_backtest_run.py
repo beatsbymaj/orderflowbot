@@ -1,4 +1,5 @@
 import json
+import re
 from collections import Counter
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -33,18 +34,18 @@ def test_backtest_produces_trades_and_respects_limits(result):
         entry, exit_ = datetime.fromisoformat(t["entry_time"]), datetime.fromisoformat(t["exit_time"])
         assert entry.date() == exit_.date() and exit_.time() <= datetime.strptime("15:45", "%H:%M").time()
         assert t["quantity"] * t["entry_price"] <= 10_000 * 0.10 * 1.1  # notional cap, with gains
-    # Legacy PDT under $25k: never more than 3 day trades in any 5 trading days.
-    days = sorted({t["entry_time"][:10] for t in trades} | {d for d, _ in _days(rec)})
-    per_day = Counter(t["entry_time"][:10] for t in trades)
-    for i in range(len(days)):
-        assert sum(per_day[d] for d in days[max(0, i - 4) : i + 1]) <= 3
+    # Cash account: each day's buys fit inside the day's settled cash (sales settle T+1).
+    spent = Counter()
+    for t in trades:
+        spent[t["entry_time"][:10]] += t["quantity"] * t["entry_price"]
+    assert spent and max(spent.values()) <= 10_000 * 1.1
     # Never more than three positions at once.
     events = sorted([(t["entry_time"], 1) for t in trades] + [(t["exit_time"], -1) for t in trades])
     open_now = 0
     for _, step in events:
         open_now += step
         assert open_now <= 3
-    assert summary["signals_blocked"].get("pattern day trader limit", 0) > 0
+    assert "pattern day trader limit" not in summary["signals_blocked"]  # cash account: no count
 
 
 def _days(rec):
@@ -124,7 +125,7 @@ def _crafted_day(day, path):
 
 
 def _limits_file(tmp_path, **replacements):
-    text = REPO_CONFIG.read_text().replace("pdt_regime: legacy_pdt", "pdt_regime: intraday_margin")
+    text = re.sub(r"pdt_regime: \w+", "pdt_regime: intraday_margin", REPO_CONFIG.read_text())
     for old, new in replacements.items():
         text = text.replace(old, new)
     path = tmp_path / "limits.yaml"

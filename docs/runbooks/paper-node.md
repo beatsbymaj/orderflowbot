@@ -24,14 +24,12 @@ enabled". That is still useful: it tests the plumbing for weeks before any trade
    walk-forward used the full tape (SIP). On IEX the node starts only with
    `PAPER_NODE_ARGS=--allow-iex`, and its results are not comparable. Decide this before
    counting paper weeks.
-5. **Day-trade rule.** risk_limits.yaml says `pdt_regime: legacy_pdt`: under $25,000 equity
-   only 3 day trades in 5 business days. RiskGuard refuses the 4th. With the $10,000 paper
-   account that caps paper at about 3 trades a week. Only you can change that file.
-   **Cash account option:** if your IBKR account is a *Cash* account (Client Portal,
-   Settings, Account type), set `pdt_regime: cash`. Then there is no day-trade count, but
-   each day the bot only buys with *settled* cash (money from a sale arrives the next
-   trading day). With $10,000 that is about $10,000 of buys a day. The pre-market check and
-   the dashboard show how much sale money is still settling. Restart the node after the edit.
+5. **Day-trade rule.** risk_limits.yaml says `pdt_regime: cash` (you confirmed a *Cash*
+   account on 2026-10-26). If the account type ever changes, `legacy_pdt` means only 3 day
+   trades in 5 business days under $25,000. Only you can change that file. With `cash` there is no
+   day-trade count, but each day the bot only buys with *settled* cash (money from a sale
+   arrives the next trading day). With $10,000 that is about $10,000 of buys a day. The
+   pre-market check and the dashboard show how much sale money is still settling.
 
 ## Every trading day (PowerShell, in the repo folder)
 1. Start Docker Desktop and wait for "running".

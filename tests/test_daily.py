@@ -50,7 +50,7 @@ def test_premarket_all_clear_then_each_problem(tmp_path):
     rep = premarket(p, now, port_check=lambda h, port: True)
     c = checks(rep)
     assert rep.level == "info" and "all clear" in rep.title()
-    assert c["Trading day"][0] is True and c["Day trades left"] == (None, "3 of 3 in 5 days")
+    assert c["Trading day"][0] is True and c["Settled cash"][1].startswith("0.00 USD")
     assert c["Jev gate"] == (None, "off") and "IBKR weekly login" not in c
 
     p.kill_file.write_text(json.dumps({"reason": "testing", "by": "op", "at": "t"}))
@@ -146,7 +146,6 @@ def test_premarket_on_a_cash_account_shows_settling_cash(tmp_path):
     from flowforge.risk.state import RiskState
 
     p = paths(tmp_path)
-    p.risk_limits.write_text(p.risk_limits.read_text().replace("pdt_regime: legacy_pdt", "pdt_regime: cash"))
     state = RiskState(load_risk_limits(p.risk_limits).limits, p.state)
     state.start_day(date(2026, 10, 26), 10_000.0)
     state.record_sale(1_500.0, date(2026, 10, 26))

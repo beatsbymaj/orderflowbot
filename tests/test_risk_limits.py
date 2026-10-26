@@ -36,7 +36,7 @@ def test_repo_config_loads_with_spec_defaults():
     assert lim.portfolio.long_only is True
     assert lim.universe.allow_leveraged_etfs is False
     assert lim.universe.allow_inverse_etfs is False
-    assert lim.trading.pdt_regime is PdtRegime.LEGACY_PDT
+    assert lim.trading.pdt_regime is PdtRegime.CASH  # operator, 2026-10-26
     assert len(loaded.sha256) == 64
 
 

@@ -160,7 +160,7 @@ def test_duplicates_and_daily_counts(limits):
 
 
 def test_pdt_limit_only_under_25k_and_legacy_regime(limits):
-    g = make_guard(limits)
+    g = make_guard(with_limits(limits, "trading", pdt_regime=PdtRegime.LEGACY_PDT))
     for i in range(limits.trading.legacy_pdt_max_day_trades):
         g.state.record_entry(f"x{i}")
     assert "pattern day trader limit" in check(g, req=request("new")).reasons
@@ -225,4 +225,5 @@ def test_cash_account_buys_only_with_settled_cash(limits):
     assert d.sizing["by_settled_cash"] == 2 and d.plan.quantity == 2  # $300 / 100.12
     g.state.record_sale(300.0, DAY)
     assert "size rounds to zero shares" in check(g, req=request("new3")).reasons
-    assert "by_settled_cash" not in check(make_guard(limits), req=request("new4")).sizing
+    margin = with_limits(limits, "trading", pdt_regime=PdtRegime.INTRADAY_MARGIN)
+    assert "by_settled_cash" not in check(make_guard(margin), req=request("new4")).sizing

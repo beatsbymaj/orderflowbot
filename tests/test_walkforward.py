@@ -64,8 +64,9 @@ def test_walkforward_passes_the_real_edge_and_fails_the_rest(limits, tmp_path):
     # Folds with no train trades fall back to the book default.
     assert res.folds[0]["chosen"]["H3"]["config"] == "zone/volume"
     acct = res.account["all_hypotheses"]
-    assert acct["trades_skipped"].get("legacy PDT day-trade limit", 0) > 0
-    assert acct["trades_taken"] <= 3 * 5  # 3 day trades per 5 days over 20 days
+    # Cash account (the repo setting): no day-trade count, so more than legacy PDT's 3 per 5 days.
+    assert "legacy PDT day-trade limit" not in acct["trades_skipped"]
+    assert acct["trades_taken"] > 3 * 5
     assert res.account["passing_only"]["trades_taken"] > 0
     path = wf.write(res, tmp_path, ["SPY 2026-08-01"])
     text = path.read_text()
