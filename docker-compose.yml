@@ -1,6 +1,6 @@
-# FlowForge local stack. Phase 1: IB Gateway (paper, read-only API), Redis, TimescaleDB,
-# and the read-only IBKR paper check. Later phases add the trading node, watchdog, API and
-# dashboard. Copy .env.example to .env first.
+# FlowForge local stack. Phase 1: IB Gateway (paper), Redis, TimescaleDB and the read-only
+# IBKR paper check. Phase 4: watchdog and the kill switch command. Later phases add the
+# trading node, API and dashboard. Copy .env.example to .env first.
 
 services:
   ib-gateway:
@@ -114,6 +114,33 @@ services:
     volumes: ["./data:/app/data", "./reports:/app/reports"]
     command: ["python", "-m", "flowforge.features.parity", "--ticks", "data/ticks", "--symbol", "SPY", "--day", "2026-10-23"]
 
+  # Phase 4: kill switch and halts (docs/runbooks/kill-switch.md). Anyone may turn it on:
+  #   docker compose run --rm riskctl kill --reason "why"
+  riskctl:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["ops"]
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data"]
+    entrypoint: ["python", "-m", "flowforge.ops.riskctl"]
+    command: ["status"]
+
+  # Phase 4: watches the kill switch and the node heartbeat; flattens on its own if the
+  # node is gone (docs/runbooks/kill-switch.md). Paper only, same guards as the paper check.
+  watchdog:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      IB_CLIENT_ID: "${IB_NODE_CLIENT_ID:-11}"   # the trading node's id: only it can cancel the node's orders
+      IB_TRADING_MODE: paper
+      IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    command: ["python", "-m", "flowforge.ops.watchdog"]
+
 volumes:
   redis-data:
   pg-data:
+  flowforge-run:   # kill switch flag + node heartbeat, shared by node, watchdog and riskctl

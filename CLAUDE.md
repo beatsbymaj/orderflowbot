@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phase 1 (foundations) merged 2026-10-25; Phase 2 (data slice) in progress since 2026-10-25. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits. No strategy or order-placing code exists yet. See ROADMAP.md and DECISIONS.md.
+Phases 1–3 merged 2026-10-25; Phase 4 (risk + execution) built 2026-10-26, awaiting review. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. Order code exists only behind RiskGuard (`GuardedStrategy`); no strategy trades yet. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -38,7 +38,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 
 ## Commands
 - Setup: `python3.13 -m venv .venv && .venv/bin/pip install -e ".[dev]" && .venv/bin/pre-commit install`
-- Tests: `pytest --cov` (risk limits loader must stay at 100%)
+- Tests: `pytest --cov` (risk limits loader must stay at 100%, src/flowforge/risk ≥ 95%)
 - Lint: `ruff check . && ruff format --check .`
 - Bypass guard: `python scripts/check_no_risk_bypass.py src`
 - Local stack: `cp .env.example .env`, fill it, `docker compose up -d ib-gateway redis timescaledb`
@@ -46,6 +46,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Tick download (past trades + NBBO, gap check, catalog): `docker compose --profile data run --rm ticks-download` (docs/runbooks/tick-download.md)
 - Live stream watch (no trading): `docker compose --profile data run --rm live-watch` (docs/runbooks/live-stream.md)
 - Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
+- Kill switch / halts: `docker compose run --rm riskctl status|kill|release|reenable`; watchdog: `docker compose --profile paper up -d watchdog` (docs/runbooks/kill-switch.md)
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 
 ## Agents
