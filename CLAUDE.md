@@ -47,6 +47,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Live stream watch (no trading): `docker compose --profile data run --rm live-watch` (docs/runbooks/live-stream.md)
 - Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
+- Massive data for Claude Code (dev aid only, not a bot feed): `.mcp.json` + `/mcp` sign-in (docs/runbooks/massive-mcp.md)
 
 ## Agents
 Subagent definitions live in .claude/agents/ (11 roles). The orchestrator owns CLAUDE.md, ROADMAP.md, DECISIONS.md and docs/decisions/.
