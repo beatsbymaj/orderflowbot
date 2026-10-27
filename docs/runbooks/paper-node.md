@@ -17,13 +17,18 @@ enabled". That is still useful: it tests the plumbing for weeks before any trade
 3. `.env` has your Alpaca keys and, if you want phone alerts, ntfy or Telegram
    (docs/runbooks/alerts.md). Add these lines if they are missing:
    ```
-   ALPACA_FEED=sip          # or iex with the free plan (see below)
-   PAPER_NODE_ARGS=         # e.g. --allow-iex, or --setups H4
+   ALPACA_FEED=iex
+   PAPER_NODE_ARGS=--allow-iex --walkforward reports/phase5-iex/walkforward.json
    ```
-4. **Feed.** The free Alpaca plan streams only IEX trades (a few % of all trades). The
-   walk-forward used the full tape (SIP). On IEX the node starts only with
-   `PAPER_NODE_ARGS=--allow-iex`, and its results are not comparable. Decide this before
-   counting paper weeks.
+4. **Feed: IEX (your choice, 2026-10-27).** The free Alpaca plan streams only IEX trades,
+   a few % of all trades. So the walk-forward is run twice: on the full tape (SIP) and on
+   IEX history. The node trades only setups that passed **on IEX**, reading
+   `reports/phase5-iex/walkforward.json`. To make the IEX study (on the PC):
+   ```powershell
+   docker compose --profile data run --rm ticks-download python -m flowforge.data.alpaca_ticks --feed iex --out data/ticks-iex --start 2026-07-30 --end 2026-10-23
+   docker compose --profile features run --rm features python -m flowforge.features.replay --ticks data/ticks-iex --out data/features-iex --jobs 4
+   docker compose --profile research run --rm walkforward python -m flowforge.research.walkforward --ticks data/ticks-iex --features data/features-iex --out reports/phase5-iex
+   ```
 5. **Day-trade rule.** risk_limits.yaml says `pdt_regime: cash` (you confirmed a *Cash*
    account on 2026-10-26). If the account type ever changes, `legacy_pdt` means only 3 day
    trades in 5 business days under $25,000. Only you can change that file. With `cash` there is no

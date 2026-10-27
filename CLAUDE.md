@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phases 1–3 merged 2026-10-25; Phases 4–7 built 2026-10-26 on PR #5 (Phase 7: paper node, drills, soak, scorecard; nothing run on IBKR paper yet). Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. 2026-10-26 operator confirmed the IBKR account is a Cash account: `pdt_regime: cash` (no day-trade count, buys only with settled cash, T+1). Open: live feed (free plan = IEX only). Phase 5 real-data walk-forward runs on the operator's PC. See ROADMAP.md and DECISIONS.md.
+Phases 1–3 merged 2026-10-25; Phases 4–7 built 2026-10-26 on PR #5 (Phase 7: paper node, drills, soak, scorecard; nothing run on IBKR paper yet). Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. 2026-10-26 operator confirmed the IBKR account is a Cash account: `pdt_regime: cash` (no day-trade count, buys only with settled cash, T+1). 2026-10-27 operator chose the free Alpaca IEX feed for paper: the walk-forward also runs on IEX history and paper trades only IEX-passing setups (DECISIONS D13). Phase 5 real-data walk-forward runs on the operator's PC. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.

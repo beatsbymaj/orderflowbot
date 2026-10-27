@@ -105,6 +105,20 @@ max drawdown in R, longest losing streak, per fold, per symbol. No window is dro
   Calibration (Brier, 10-bin reliability) is tracked per question. Without a TypeSafe key the
   gate stays off and this part is reported as not run.
 
+## Addendum 2026-10-27, before any result: the IEX run
+The operator chose the free Alpaca plan for paper trading, which streams only IEX trades and
+quotes (docs/research/07). The signals paper would see differ from the SIP tape this study
+uses, so the same study is run a second time on IEX history:
+- Same hypotheses, configs, window, folds and pass rules as above; nothing re-tuned.
+  Data: `alpaca_ticks --feed iex` into `data/ticks-iex`, features into `data/features-iex`,
+  results in `reports/phase5-iex/`.
+- Only a setup that passes **on IEX** may trade on paper (the node reads
+  `reports/phase5-iex/walkforward.json`). The SIP run is still reported in full; a setup that
+  passes on SIP but not IEX is reported as "needs the full feed".
+- This doubles the number of studies, so both are always reported together, passes and
+  failures, and the Holm correction stays per study as pre-registered (stated here so it
+  isn't chosen after the fact).
+
 ## Sources (checked 2026-10-26)
 - Holm, S. (1979). A simple sequentially rejective multiple test procedure. *Scandinavian
   Journal of Statistics* 6(2), 65–70.
