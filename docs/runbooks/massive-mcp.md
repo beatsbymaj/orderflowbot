@@ -28,6 +28,8 @@ No `.mcp.json` in your folder? Type this instead, once, before step 2: `claude m
 3. Your web browser opens. Log in to Massive and click **Allow**.
 4. Go back to PowerShell. `massive` should now say **connected**.
 
+Don't see **massive** in the `/mcp` list? Close the Claude app all the way (right-click its icon near the clock, then **Quit**), open it again, and start a **new** chat. Claude Code only reads the server list when a chat starts.
+
 ## Step 5: Try it
 Ask Claude Code: "Using Massive, what was SPY's closing price yesterday?"
 If you get a price, you're done.

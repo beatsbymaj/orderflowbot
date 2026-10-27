@@ -21,8 +21,12 @@ Accessed 2026-10-27. Adds to doc 03 (Massive market data, 2026-10-19), row 25.
 - No code in `src/` calls it. Risk code never reads it.
 - The config file `.mcp.json` holds only the public server URL. The OAuth token is kept by Claude Code on the operator's machine, never in git.
 
+## Tested 2026-10-27 (free Basic plan)
+- After the operator signed in, the tools `search_endpoints`, `call_api`, `query_data` and `workspace` loaded in claude.ai cloud Claude Code sessions as well as on the PC.
+- `call_api /v2/aggs/ticker/SPY/prev` returned the 2026-10-26 daily bar: o 762.25, h 767.73, l 761.63, c 765.37, v 31,737,797, n 490,499.
+- On the PC the `claude` command isn't on PATH when Claude Code comes from the desktop app. `claude mcp add` was run with the app's bundled `claude.exe`, at user scope. A chat that was already open had to be restarted before `/mcp` listed the server.
+
 ## UNVERIFIED
-- Whether OAuth sign-in works from claude.ai cloud sessions (no local browser). Confirmed path is Claude Code on the operator's PC.
 - REST rate limits that apply through the MCP server on the Basic plan.
 
 ## Sources
