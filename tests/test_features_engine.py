@@ -261,5 +261,29 @@ def test_run_carries_the_engine_sweep_threshold(ticks_dir, tmp_path, monkeypatch
     replay.run(ticks_dir, tmp_path, ["AAPL"], None, FeatureConfig())
     assert seen == [(date(2026, 10, 22), None), (DAY, 22.0)]
     seen.clear()
-    replay.run(ticks_dir, tmp_path, ["AAPL"], [DAY], FeatureConfig())
+    replay.run(ticks_dir, tmp_path, ["AAPL"], [DAY], FeatureConfig(), force=True)
     assert seen == [(DAY, None)]
+
+
+def test_run_resumes_after_an_interrupted_build(ticks_dir, tmp_path, monkeypatch):
+    """Finished days are read back (and still carry the sweep threshold); a half-written or
+    unreadable day is replayed again."""
+    seen = []
+
+    def fake(ticks, symbol, day, config, sink, minutes=None, sweep_usd=None):
+        seen.append((day, sweep_usd))
+        sink({"type": "day_stats", "next_sweep_usd": float(day.day)})
+        return {}
+
+    monkeypatch.setattr(replay, "replay_day", fake)
+    replay.run(ticks_dir, tmp_path, ["AAPL"], None, FeatureConfig())
+    seen.clear()
+    (tmp_path / "AAPL" / f"{DAY.isoformat()}.jsonl.gz").write_bytes(b"\x1f\x8b broken")
+    rows = replay.run(ticks_dir, tmp_path, ["AAPL"], None, FeatureConfig())
+    assert seen == [(DAY, 22.0)] and len(rows) == 2  # 10-22 reused, its threshold carried on
+    with gzip.open(tmp_path / "AAPL" / f"{DAY.isoformat()}.jsonl.gz", "wt") as fh:
+        fh.write(json.dumps({"type": "trade"}) + "\n")  # no day_stats: not finished
+    seen.clear()
+    replay.run(ticks_dir, tmp_path, ["AAPL"], None, FeatureConfig())
+    assert seen == [(DAY, 22.0)]
+    assert not list((tmp_path / "AAPL").glob("*.tmp"))

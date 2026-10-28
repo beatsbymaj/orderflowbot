@@ -22,7 +22,9 @@ docker compose --profile data run --rm ticks-download python -m flowforge.data.a
 ```powershell
 docker compose --profile features run --rm features python -m flowforge.features.replay --ticks data/ticks --out data/features --jobs 4
 ```
-`--jobs 4` works on 4 stocks at once. Use `--jobs 2` if the PC gets slow. This takes a few
+`--jobs 4` works on 4 stocks at once. Use `--jobs 2` if the PC gets slow. If it stops (sleep, Docker
+quit), run the same line again: finished stock-days are kept and skipped (`--force` redoes
+them all). This takes a few
 hours. The result is `data\features\summary.md`.
 
 ## 3. Run the walk-forward test
