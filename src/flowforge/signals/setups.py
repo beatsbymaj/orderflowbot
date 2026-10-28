@@ -166,8 +166,11 @@ class SignalEngine:
         st.row = bar["row"] or st.row
         levels = [lv for group in (ctx.get("levels") or {}).values() for lv in group]
         overlapping = [lv for lv in levels if bar["low"] <= lv["high"] and bar["high"] >= lv["low"]]
-        first_touch = {level_key(lv) for lv in overlapping if level_key(lv) not in st.touched}
-        st.touched.update(level_key(lv) for lv in overlapping)
+        # Only an overlap after the level was left counts as its first touch. The bar a level is
+        # built in overlaps it too (a large print sits inside its own bar), and must not use it up.
+        returns = {level_key(lv) for lv in overlapping if _left_then_first_touch(lv)}
+        first_touch = returns - st.touched
+        st.touched |= returns
         ts = parse_ts_ns(bar["end"])
         if bar.get("gap") or not entry_window(ts) or prev_low is None:
             return []

@@ -119,6 +119,18 @@ uses, so the same study is run a second time on IEX history:
   failures, and the Holm correction stays per study as pre-registered (stated here so it
   isn't chosen after the fact).
 
+## Correction 2026-10-28: a code fault in H1–H3, found on the first SIP run
+The first real-data run (SIP, 2026-10-28; /mnt/project-files/flowforge/phase5/walkforward-sip-2026-10-28.md)
+gave H2 no signals at all and H1/H3 almost none. Cause: the signal engine marked a level as
+"touched" in the bar that built it (a large print, or a stacked level, sits inside its own
+bar), so the real first return after leaving never counted. That contradicts the rule above
+("left for ≥ 1 whole bar, never touched since, first touched from above"). Fixed so only an
+overlap after the level was left counts as the first touch (commit after 17fde57, test
+`test_h2_level_overlapped_by_the_bar_that_made_it_still_fires_on_its_first_return`).
+Nothing else changed: same hypotheses, configs, folds, pass rules and trial count. H4 and H5
+don't use this rule; their results are unaffected. The whole study is rerun and **both runs
+are reported**; the first run's H1–H3 numbers are void because of the fault.
+
 ## Sources (checked 2026-10-26)
 - Holm, S. (1979). A simple sequentially rejective multiple test procedure. *Scandinavian
   Journal of Statistics* 6(2), 65–70.

@@ -87,6 +87,27 @@ def test_h1_fires_once_on_first_touch_from_above():
     )
 
 
+def test_h2_level_overlapped_by_the_bar_that_made_it_still_fires_on_its_first_return():
+    """A large print sits inside the 5-min bar it printed in, so that bar overlaps the level.
+    That isn't a touch after leaving; the real first return must still signal (found on the
+    2026-10-28 real-data run, where H2 gave no signals at all)."""
+    made = level("large_print", tf=300, low=99.0, high=99.04, away=0, touches=0)
+    left = made | {"away_bars": 1}
+    back = made | {"touches": 1}
+    e = SignalEngine(("H2",))
+    sigs = feed(
+        e,
+        bar(10, 30, 98.9, 99.3, 99.2, levels=[made]),  # the print's own bar
+        bar(10, 35, 99.5, 99.9, 99.8, levels=[left]),  # leaves the level
+        bar(10, 40, 98.98, 99.6, 99.1, levels=[back]),  # first return from above
+    )
+    assert [s.setup for s in sigs] == ["H2"]
+    assert (
+        feed(e, bar(10, 45, 99.5, 99.9, 99.8, levels=[back]), bar(10, 50, 99.0, 99.6, 99.1, levels=[back]))
+        == []
+    )
+
+
 def test_h1_needs_a_pullback_from_above_and_a_close_in_or_over_the_zone():
     lv = level()
     e = SignalEngine(("H1",))
