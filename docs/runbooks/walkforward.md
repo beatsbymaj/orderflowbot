@@ -24,7 +24,17 @@ docker compose --profile features run --rm features python -m flowforge.features
 ```
 `--jobs 4` works on 4 stocks at once. Use `--jobs 2` if the PC gets slow. If it stops (sleep, Docker
 quit), run the same line again: finished stock-days are kept and skipped (`--force` redoes
-them all). This takes a few
+them all).
+
+**Windows: much faster from a Docker volume.** Reading `data\ticks` through Docker's Windows
+file sharing (worse under OneDrive) took ~50 minutes per stock-day; from a Docker volume it
+took ~1–1.5 minutes (measured 2026-10-28). Copy once, then mount it read-only:
+```powershell
+docker volume create ff-ticks
+docker run --rm -v "${PWD}\data\ticks:/src:ro" -v ff-ticks:/dst alpine sh -c "cp -a /src/. /dst/"
+docker compose --profile features run --rm -v ff-ticks:/app/data/ticks:ro features python -m flowforge.features.replay --ticks data/ticks --out data/features --jobs 3
+```
+Use the same `-v ff-ticks:/app/data/ticks:ro` for the walk-forward. `--jobs 3` used ~6–7 GB. This takes a few
 hours. The result is `data\features\summary.md`.
 
 ## 3. Run the walk-forward test
