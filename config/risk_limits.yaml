@@ -30,7 +30,7 @@ loss:
 trading:
   max_trades_per_day: 10          # Claude default (spec: configurable)
   max_order_submit_rate: "5/00:00:01"   # Claude default, passed to Nautilus RiskEngine
-  pdt_regime: legacy_pdt          # legacy_pdt | intraday_margin. Fail-safe until the IBKR account's regime is confirmed
+  pdt_regime: cash                # legacy_pdt | intraday_margin | cash. Operator set cash 2026-10-26: IBKR account type is Cash
   legacy_pdt_max_day_trades: 3    # day trades per 5 business days when equity < $25k under legacy_pdt
 
 universe:

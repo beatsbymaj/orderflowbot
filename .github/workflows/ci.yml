@@ -27,8 +27,9 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check . && ruff format --check .
       - run: python scripts/check_no_risk_bypass.py src
-      - name: Tests (risk limits loader must stay at 100% coverage)
+      - name: Tests (risk limits loader 100%, RiskGuard >= 95% coverage)
         run: |
           pytest --cov --cov-report=term-missing
           coverage report --include="src/flowforge/config/*" --fail-under=100
+          coverage report --include="src/flowforge/risk/*" --fail-under=95
           coverage report --fail-under=90

@@ -3,7 +3,7 @@
 Autonomous US-equities order-flow trading bot. Real money. Capital preservation first, profitability second.
 
 ## Current phase
-Phase 1 (foundations) merged 2026-10-25; Phase 2 (data slice) in progress since 2026-10-25. Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits. No strategy or order-placing code exists yet. See ROADMAP.md and DECISIONS.md.
+Phases 1–3 merged 2026-10-25; Phases 4–7 built 2026-10-26 on PR #5 (Phase 7: paper node, drills, soak, scorecard; nothing run on IBKR paper yet). Operator decisions: Alpaca + IBKR TotalView data, long-only at launch, QuantForge skipped, spec-default risk limits; 2026-10-26 operator asked to continue through Phase 7 (paper) without a separate go per phase, never live money. 2026-10-26 operator confirmed the IBKR account is a Cash account: `pdt_regime: cash` (no day-trade count, buys only with settled cash, T+1). 2026-10-27 operator chose the free Alpaca IEX feed for paper: the walk-forward also runs on IEX history and paper trades only IEX-passing setups (DECISIONS D13). Phase 5 real-data walk-forward runs on the operator's PC. See ROADMAP.md and DECISIONS.md.
 
 ## Non-negotiables
 1. Verify APIs, tools, order types, limits, prices and rules against official docs; record URL + date in docs/research/. Unverifiable = UNVERIFIED, design around it.
@@ -26,7 +26,7 @@ Phase 1 (foundations) merged 2026-10-25; Phase 2 (data slice) in progress since 
 Trader Dale's *Order Flow Trading Setups* is the project's order-flow reference (summary: /mnt/project-files/orderflow/reference/order-flow-setups-book.md). Its examples are futures/forex and untested; every setup is a hypothesis to validate walk-forward on US equities. All its setups except DOM reading are computable from trades + the quote at trade time.
 
 ## Architecture
-One Nautilus TradingNode: data clients, feature indicators/actors, strategies, Jev gate actor, FlowForge RiskGuard, IB execution client. Separate processes: IB Gateway, watchdog (independent cancel/flatten), post-trade, FastAPI API, React dashboard. Node events → Redis Streams; journal in Postgres + TimescaleDB; ticks in the Nautilus Parquet catalog. Docker Compose; macOS + Linux VPS.
+One Nautilus TradingNode: data clients, feature indicators/actors, strategies, Jev gate actor, FlowForge RiskGuard, IB execution client. Separate processes: IB Gateway, watchdog (independent cancel/flatten), post-trade, alert relay, daily reports, FastAPI API + no-build dashboard. Node events → JSON-lines journals (Redis Streams / TimescaleDB deferred, ADR-0015); ticks in the Nautilus Parquet catalog. Docker Compose; macOS + Linux VPS.
 
 ## Layout
 - docs/research/ — one file per topic, sources dated
@@ -38,7 +38,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 
 ## Commands
 - Setup: `python3.13 -m venv .venv && .venv/bin/pip install -e ".[dev]" && .venv/bin/pre-commit install`
-- Tests: `pytest --cov` (risk limits loader must stay at 100%)
+- Tests: `pytest --cov` (risk limits loader must stay at 100%, src/flowforge/risk ≥ 95%)
 - Lint: `ruff check . && ruff format --check .`
 - Bypass guard: `python scripts/check_no_risk_bypass.py src`
 - Local stack: `cp .env.example .env`, fill it, `docker compose up -d ib-gateway redis timescaledb`
@@ -46,6 +46,12 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Tick download (past trades + NBBO, gap check, catalog): `docker compose --profile data run --rm ticks-download` (docs/runbooks/tick-download.md)
 - Live stream watch (no trading): `docker compose --profile data run --rm live-watch` (docs/runbooks/live-stream.md)
 - Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
+- Kill switch / halts: `docker compose run --rm riskctl status|kill|release|reenable`; watchdog: `docker compose --profile paper up -d watchdog` (docs/runbooks/kill-switch.md)
+- Phase 5 walk-forward (offline, no orders): `docker compose --profile research run --rm walkforward` (`--jev` for the gate; docs/runbooks/walkforward.md). Hypotheses are pre-registered in docs/research/14; don't change them after seeing results.
+- Dashboard (read only + kill ON): `docker compose --profile paper up -d dashboard` → http://localhost:8080; demo data: `docker compose --profile demo up --build dashboard-demo` (docs/runbooks/dashboard.md)
+- Phone alerts and daily reports: `docker compose --profile paper up -d alerts daily` (docs/runbooks/alerts.md, daily-ops.md)
+- Paper node: `docker compose --profile paper run --rm node --preflight`, then `docker compose --profile paper up -d node` (docs/runbooks/paper-node.md)
+- Paper drills / soak: `docker compose --profile drill run --rm paper-drill instruments|round-trip|stop|takeover|restart`, `... paper-soak` (docs/runbooks/paper-drills.md); scorecard: `docker compose --profile check run --rm scorecard`
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 - Massive data for Claude Code (dev aid only, not a bot feed): `.mcp.json` + `/mcp` sign-in (docs/runbooks/massive-mcp.md)
 

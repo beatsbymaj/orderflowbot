@@ -1,6 +1,7 @@
-# FlowForge local stack. Phase 1: IB Gateway (paper, read-only API), Redis, TimescaleDB,
-# and the read-only IBKR paper check. Later phases add the trading node, watchdog, API and
-# dashboard. Copy .env.example to .env first.
+# FlowForge local stack. Phase 1: IB Gateway (paper), Redis, TimescaleDB and the read-only
+# IBKR paper check. Phase 4: watchdog and the kill switch command. Phase 6: dashboard,
+# phone alerts and the daily reports. Phase 7 adds the trading node. Copy .env.example to
+# .env first.
 
 services:
   ib-gateway:
@@ -114,6 +115,154 @@ services:
     volumes: ["./data:/app/data", "./reports:/app/reports"]
     command: ["python", "-m", "flowforge.features.parity", "--ticks", "data/ticks", "--symbol", "SPY", "--day", "2026-10-23"]
 
+  # Phase 5: walk-forward test of the pre-registered signals (docs/runbooks/walkforward.md).
+  # Offline, no orders. Add --jev to also test the Jev gate (needs TYPESAFE_API_KEY).
+  walkforward:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["research"]
+    environment:
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.research.walkforward", "--features", "data/features", "--ticks", "data/ticks", "--out", "reports/phase5"]
+
+  # Phase 5: fast simulator vs full Nautilus backtest on one stock-day.
+  crosscheck:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["research"]
+    volumes: ["./data:/app/data", "./reports:/app/reports"]
+    entrypoint: ["python", "-m", "flowforge.research.crosscheck", "--ticks", "data/ticks", "--out", "reports/phase5"]
+
+  # Phase 4: kill switch and halts (docs/runbooks/kill-switch.md). Anyone may turn it on:
+  #   docker compose run --rm riskctl kill --reason "why"
+  riskctl:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["ops"]
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data"]
+    entrypoint: ["python", "-m", "flowforge.ops.riskctl"]
+    command: ["status"]
+
+  # Phase 4: watches the kill switch and the node heartbeat; flattens on its own if the
+  # node is gone (docs/runbooks/kill-switch.md). Paper only, same guards as the paper check.
+  watchdog:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      IB_CLIENT_ID: "${IB_NODE_CLIENT_ID:-11}"   # the trading node's id: only it can cancel the node's orders
+      IB_TRADING_MODE: paper
+      IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    command: ["python", "-m", "flowforge.ops.watchdog"]
+
+  # Phase 7: the paper trading node (docs/runbooks/paper-node.md). IBKR paper only: it refuses
+  # anything else. Only setups that passed the walk-forward can trade; with none it runs in
+  # shadow (features and signals journaled, no entries). Extra flags: PAPER_NODE_ARGS in .env.
+  node:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: "no"          # a crashed node stays down: the watchdog flattens, a human restarts it
+    environment: &paper-env
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      IB_CLIENT_ID: "${IB_NODE_CLIENT_ID:-11}"   # the watchdog uses the same id (ADR-0013)
+      IB_TRADING_MODE: paper
+      IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
+      ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
+      ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
+      ALPACA_FEED: ${ALPACA_FEED:-sip}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}    # only used when config/jev.yaml enables the gate
+      FLOWFORGE_RUN_DIR: /var/run/flowforge
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.paper_node"]
+    command: ${PAPER_NODE_ARGS:---symbols=SPY,QQQ,AAPL,MSFT,NVDA}
+
+  # Phase 7 drills on IBKR paper, 1 share of SPY each (docs/runbooks/paper-drills.md).
+  # Stop `node` and `watchdog` first:  docker compose --profile drill run --rm paper-drill round-trip
+  paper-drill:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["drill"]
+    environment: *paper-env
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.paper_drills"]
+    command: ["instruments"]
+
+  # Phase 7 restart soak: stops and restarts the paper node, checks each restart is clean.
+  paper-soak:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["drill"]
+    environment: *paper-env
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.soak"]
+    command: ["--cycles", "8"]
+
+  # Phase 7 gate: the paper scorecard from the journals (also refreshed by `daily` after each close).
+  scorecard:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["check"]
+    volumes: ["./data:/app/data:ro", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.ops.scorecard"]
+
+  # Phase 6: dashboard on http://localhost:8080 (docs/runbooks/dashboard.md). Read only,
+  # except the kill switch button, which can only turn the switch ON.
+  dashboard:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      FLOWFORGE_RUN_DIR: /var/run/flowforge
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      NTFY_TOPIC: ${NTFY_TOPIC:-}                       # only "set / not set" is shown
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    ports: ["127.0.0.1:8080:8080"]                      # this computer only
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports:ro"]
+    command: ["python", "-m", "flowforge.api", "--host", "0.0.0.0", "--port", "8080"]
+
+  # Phase 6: the dashboard with made-up data, for a walkthrough before paper trading.
+  dashboard-demo:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["demo"]
+    ports: ["127.0.0.1:8080:8080"]
+    command: ["python", "-m", "flowforge.api", "--host", "0.0.0.0", "--port", "8080", "--demo", "/app/data/demo"]
+
+  # Phase 6: phone alerts from the journals (docs/runbooks/alerts.md).
+  alerts:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes: ["./data:/app/data"]
+    command: ["python", "-m", "flowforge.ops.alerts", "run"]
+
+  # Phase 6: pre-market check at 09:00 ET and end-of-day report after the close.
+  daily:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["paper"]
+    restart: unless-stopped
+    environment:
+      FLOWFORGE_HEARTBEAT: /var/run/flowforge/heartbeat.json
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]
+    command: ["python", "-m", "flowforge.ops.daily", "schedule"]
+
 volumes:
   redis-data:
   pg-data:
+  flowforge-run:   # kill switch flag + node heartbeat, shared by node, watchdog and riskctl

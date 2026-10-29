@@ -56,3 +56,17 @@ Python 3.13, Nautilus Parquet data catalog for tick archives, Redis Streams (Red
 
 ## D11. Latency
 IBKR order latency is unpublished (UNVERIFIED). Setups target seconds-to-minutes holds. Latency is measured in the IBKR paper stage and fed into the backtest's latency model; every report shows signal-to-fill latency and cost.
+
+## D12. Account type: cash (2026-10-26)
+The operator confirmed the IBKR account is a Cash account. `pdt_regime: cash` in
+config/risk_limits.yaml: no day-trade count; RiskGuard, the backtest and the walk-forward
+replay cap each day's buys at settled cash (sales settle T+1), which avoids good-faith
+violations and freeriding (docs/research/05, 16). IBKR's own cash-account specifics are
+UNVERIFIED; the paper account's type is checked in Client Portal before the paper run.
+
+## D13. Paper live feed: free Alpaca IEX (2026-10-27)
+The operator chose the free Alpaca plan, which streams only IEX trades and quotes, for paper
+trading. Because IEX is a few percent of all trades, the pre-registered walk-forward is run
+again on IEX history (docs/research/14 addendum, written before any result) and paper trades
+only setups that pass on IEX. The SIP study is still reported in full. Live money would need
+this decision revisited.

@@ -37,7 +37,13 @@ def test_sizing_takes_the_smallest_cap():
     d = _check(_book(), price=100.0, stop=99.0)
     # risk: 0.5% of 10k = $50 / $1 = 50; notional: 10% = $1000 / $100 = 10
     assert d.allowed and d.quantity == 10
-    assert d.sizing == {"by_risk": 50, "by_notional": 10, "by_gross": 100, "by_volume": 500}
+    assert d.sizing == {
+        "by_risk": 50,
+        "by_notional": 10,
+        "by_gross": 100,
+        "by_volume": 500,
+        "by_settled_cash": 100,
+    }
     wide = _check(_book(), price=100.0, stop=90.0)
     assert wide.quantity == 5  # $50 / $10 per share
     thin = _check(_book(), volume=60.0)
@@ -85,7 +91,7 @@ def test_gross_exposure_cap():
 
 
 def test_legacy_pdt_counts_day_trades_over_five_trading_days():
-    book = _book()
+    book = _book(trading__pdt_regime="legacy_pdt")
     for s in ["A", "B", "C"]:
         book.record_entry(s, 1_000)
         book.record_exit(s, 0.0)
@@ -96,7 +102,9 @@ def test_legacy_pdt_counts_day_trades_over_five_trading_days():
     book.start_day(DAY + timedelta(days=7))  # next Monday: Monday's trades dropped out
     assert _check(book).allowed
     # At or above $25k the legacy rule doesn't apply.
-    assert _check(_book(equity=30_000.0, **{"trading__legacy_pdt_max_day_trades": 0})).allowed
+    assert _check(
+        _book(equity=30_000.0, trading__pdt_regime="legacy_pdt", trading__legacy_pdt_max_day_trades=0)
+    ).allowed
 
 
 def test_daily_loss_halts_for_the_day_only():
@@ -121,3 +129,16 @@ def test_weekly_drawdown_halts_until_next_week():
     assert _check(book).reason == "weekly drawdown halt"
     book.start_day(DAY + timedelta(days=7))
     assert _check(book).allowed
+
+
+def test_cash_account_spends_settled_cash_once_a_day():
+    book = _book(trading__pdt_regime="cash", trading__max_trades_per_day=50)
+    for s in "ABCDEFGHIJ":  # ten buys of $1000: the day's settled cash
+        d = _check(book, symbol=s)
+        assert d.allowed and d.sizing["by_settled_cash"] >= 10, d
+        book.record_entry(s, 1_000.0)
+        book.record_exit(s, 0.0)
+    d = _check(book, symbol="K")
+    assert not d.allowed and d.sizing["by_settled_cash"] == 0
+    book.start_day(DAY + timedelta(days=1))  # yesterday's sales have settled
+    assert _check(book, symbol="K").allowed

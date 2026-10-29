@@ -42,6 +42,7 @@ class LimitBook:
     week: tuple[int, int] | None = None
     week_peak_equity: float = 0.0
     trades_today: int = 0
+    spent_today: float = 0.0  # cash account: buys today, paid from settled cash
     halted_today: bool = False
     halted_this_week: bool = False
     open_notional: dict[str, float] = field(default_factory=dict)
@@ -57,6 +58,7 @@ class LimitBook:
         self.trading_days.append(day)
         self.day_start_equity = self.cash_equity
         self.trades_today = 0
+        self.spent_today = 0.0
         self.halted_today = False
         week = day.isocalendar()[:2]
         if week != self.week:
@@ -116,6 +118,8 @@ class LimitBook:
             ),
             "by_volume": math.floor(avg_minute_volume * lim.per_trade.max_pct_of_recent_volume / 100),
         }
+        if lim.trading.pdt_regime == PdtRegime.CASH:  # sales settle T+1: one turn of cash a day
+            sizing["by_settled_cash"] = math.floor(max(0.0, self.day_start_equity - self.spent_today) / price)
         qty = min(sizing.values())
         if qty < 1:
             return EntryDecision(False, "size rounds to zero shares", 0, sizing)
@@ -124,6 +128,7 @@ class LimitBook:
     def record_entry(self, symbol: str, notional: float) -> None:
         self.open_notional[symbol] = notional
         self.trades_today += 1
+        self.spent_today += notional
         # Every position is flattened the same day, so each entry is a day trade.
         assert self.day is not None
         self.day_trades.append(self.day)

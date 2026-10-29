@@ -1,0 +1,9 @@
+# Jev gate (ADR-0004, ADR-0014). The gate can only veto a signal; RiskGuard still decides.
+# Off until the Phase 5 out-of-sample test says it beats trading without it
+# (reports/phase5/walkforward.md, "Jev gate"). The model is pinned; other values are refused.
+jev:
+  enabled: false
+  shadow: true          # when enabled: ask and log, never veto, until the operator sets false
+  model: jev-1.13.0
+  deadline_ms: 750      # total budget, no retries; late or failed = NO TRADE
+  threshold: 0.6        # P(yes) needed to allow; re-pick from the walk-forward before use
