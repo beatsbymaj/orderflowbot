@@ -32,6 +32,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from flowforge.api.crew import CrewInputs, build_crew, crew_summary
 from flowforge.config.risk_limits import load_risk_limits
 from flowforge.execution.heartbeat import read_heartbeat, wall_clock_ns
 from flowforge.execution.journal import Journal
@@ -604,6 +605,46 @@ def create_app(paths: ApiPaths | None = None, clock=wall_clock_ns, port_check=_p
                     }
                 )
         return {"scorecard": card if isinstance(card, dict) else None, "drills": drills, "soaks": soaks}
+
+    @app.get("/api/crew")
+    def crew_view() -> dict:
+        """Each working part as an agent; the states come from the files the Health page reads."""
+        now = clock()
+
+        def age(ts_ns) -> float:
+            return (now - int(ts_ns)) / NS
+
+        loaded = limits()
+        beat = read_heartbeat(paths.heartbeat)
+        tape = _read_json(paths.tape)
+        dog = _read_json(paths.watchdog)
+        read = read_journal(paths.journals, et_date(now).isoformat())
+        counts: dict[str, int] = {}
+        for r in read.records:
+            if r["source"] == "node":
+                counts[r["event"]] = counts.get(r["event"], 0) + 1
+        try:
+            jev = load_jev(paths.jev)
+            jev_on, jev_shadow = bool(jev.enabled), bool(jev.shadow)
+        except Exception:  # noqa: BLE001 (an unreadable config is off; Settings shows why)
+            jev_on, jev_shadow = False, True
+        inputs = CrewInputs(
+            live=paths.demo or session_state(now)["state"] == "open",
+            node_age_s=beat.age_s(now) if beat is not None else None,
+            node_fresh_s=HEARTBEAT_FRESH_S,
+            tape_age_s=age(tape.get("ts_ns", 0)) if isinstance(tape, dict) else None,
+            tape_stale_s=TAPE_STALE_S,
+            watchdog_age_s=age(dog.get("ts_ns", 0)) if isinstance(dog, dict) else None,
+            gateway_up=port_check(paths.ib_host, paths.ib_port),
+            kill_on=kill_switch(loaded).is_engaged(),
+            halt=RiskState(loaded.limits, paths.state).halt_reason(),
+            jev_enabled=jev_on,
+            jev_shadow=jev_shadow,
+            alert_channels=[k for k, v in alerts.configured(paths.env).items() if v],
+            counts=counts,
+            last_record_age_s=age(read.records[-1]["ts_ns"]) if read.records else None,
+        )
+        return {"now": _iso(now)} | crew_summary(build_crew(inputs))
 
     @app.post("/api/kill")
     def kill(
