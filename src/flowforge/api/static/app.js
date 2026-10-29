@@ -16,7 +16,7 @@
   const clock = (ns, sec = false) => new Date(Number(ns) / 1e6).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: sec ? '2-digit' : undefined });
   const clockIso = (iso, sec = false) => new Date(iso).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: sec ? '2-digit' : undefined });
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  let timer = null, lastGood = null, statusCache = null;
+  let timer = null, lastGood = null, statusCache = null, statusAt = 0;
 
   async function api(path, opts) {
     const r = await fetch(path, { cache: 'no-store', ...opts });
@@ -66,7 +66,7 @@
   // ---------- Live ----------
   async function live() {
     const s = await api('/api/status');
-    statusCache = s; scope(s);
+    statusCache = s; statusAt = Date.now(); scope(s);
     const t = s.today;
     const marked = s.equity != null && s.day_start_equity ? s.equity - s.day_start_equity : null;
     const open = marked != null ? marked - t.net : null;
@@ -330,13 +330,20 @@
     document.querySelectorAll('.rail a').forEach((a) => { if (a.dataset.route === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     document.title = `${name[0].toUpperCase() + name.slice(1)} · FlowForge`;
     try { await ROUTES[name][0](); } catch (err) { view.innerHTML = failed(err); }
+    view.removeAttribute('aria-busy');
   }
   function schedule() {
     clearInterval(timer);
     const every = (ROUTES[current()] || ROUTES.live)[1];
     if (every) timer = setInterval(() => { if (!document.getElementById('kill-dialog').open) { statusCache = null; render(); } }, every);
   }
-  window.addEventListener('hashchange', () => { statusCache = null; render(); schedule(); });
+  // Switching screens reuses a status under 10 s old (the timers refresh it), and the old screen
+  // dims at once so the click shows even when the PC is slow to read the journals.
+  window.addEventListener('hashchange', () => {
+    if (Date.now() - statusAt > 10000) statusCache = null;
+    view.setAttribute('aria-busy', 'true');
+    render(); schedule();
+  });
 
   // ---------- the kill switch (on only) ----------
   const dlg = document.getElementById('kill-dialog'), form = document.getElementById('kill-form'), kerr = document.getElementById('kill-error');

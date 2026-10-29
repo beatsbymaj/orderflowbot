@@ -233,3 +233,4 @@ dialog .input { width: 100%; }
   table.stack td.empty-cell { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
+#view[aria-busy='true'] { opacity: 0.45; transition: opacity 120ms ease-out; pointer-events: none; }
