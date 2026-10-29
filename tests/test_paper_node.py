@@ -19,7 +19,7 @@ TODAY = date(2026, 10, 27)
 
 def walkforward(tmp_path, passes=("H4",), config="zone/volume"):
     path = tmp_path / "walkforward.json"
-    oos = {s: {"passes": s in passes, "trades": 40} for s in ("H1", "H2", "H3", "H4", "H5")}
+    oos = {s: {"passes": s in passes, "trades": 40} for s in ("H1", "H2", "H3", "H4", "H5", *passes)}
     folds = [
         {"chosen": {s: {"config": "book/book"} for s in oos}},
         {"chosen": {s: {"config": config} for s in oos}},
@@ -68,6 +68,8 @@ def test_broken_walkforward_results_are_refused(tmp_path):
         pn.setups_for_paper(bad, None)
     with pytest.raises(pn.PaperRefused, match="no stop/target"):
         pn.setups_for_paper(walkforward(tmp_path, config=""), None)
+    with pytest.raises(pn.PaperRefused, match="can't trade it yet"):
+        pn.setups_for_paper(walkforward(tmp_path, passes=("B1",)), None)
 
 
 def test_plan_refuses_live_settings_and_the_wrong_feed(tmp_path):

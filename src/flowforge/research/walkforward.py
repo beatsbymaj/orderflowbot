@@ -1,7 +1,8 @@
-"""Phase 5 walk-forward test (docs/research/14-signal-hypotheses.md). Offline, no orders.
+"""Phase 5 walk-forward tests (docs/research/14 and 17). Offline, no orders.
 
     python -m flowforge.research.walkforward --features data/features --ticks data/ticks \\
         --out reports/phase5
+    python -m flowforge.research.walkforward --study 5b      # Phase 5b: its own days and folders
 
 Reads the Phase 3 feature files (data/features/<SYMBOL>/<day>.jsonl.gz) and the Phase 2
 quotes, runs every hypothesis in every grid configuration through the fast simulator, picks a
@@ -42,6 +43,15 @@ from flowforge.signals.setups import (
     SignalEngine,
     entry_window,
 )
+from flowforge.signals.setups_b import (
+    CONTROL_B,
+    DEFAULT_B,
+    NAMES_B,
+    SETUPS_B,
+    STOP_MODES_B,
+    TARGET_MODES_B,
+    SignalEngineB,
+)
 
 CONFIGS = tuple((s, t) for s in STOP_MODES for t in TARGET_MODES)
 N_TRIALS = len(SETUPS) * len(CONFIGS)  # 20, pre-registered
@@ -53,6 +63,69 @@ MIN_DSR = 0.95
 SEED = 20261026
 START_EQUITY = 10_000.0
 PDT_EQUITY = 25_000.0
+
+
+@dataclass(frozen=True)
+class Study:
+    """One pre-registered test: its setups, grid, trial count, control and default folders."""
+
+    name: str
+    plan_doc: str
+    setups: tuple[str, ...]
+    configs: tuple[tuple[str, str], ...]
+    default: tuple[str, str]
+    n_trials: int  # for the deflated Sharpe
+    seed: int
+    control: tuple[str, str]
+    engine: Callable[[], object]
+    names: dict
+    gate_fallback: str
+    first: str
+    last: str
+    features: str
+    ticks: str
+    out: str
+
+
+PHASE5 = Study(
+    name="Phase 5",
+    plan_doc="docs/research/14-signal-hypotheses.md",
+    setups=SETUPS,
+    configs=CONFIGS,
+    default=BOOK_DEFAULT,
+    n_trials=N_TRIALS,
+    seed=SEED,
+    control=("atr", "2r"),
+    engine=SignalEngine,
+    names={},  # filled below from NAMES
+    gate_fallback="H4",
+    first="2026-07-31",
+    last="2026-10-23",
+    features="data/features",
+    ticks="data/ticks",
+    out="reports/phase5",
+)
+# Phase 5b (docs/research/17): 4 setups x 2 exits; the deflated Sharpe counts Phase 5's 20 too.
+CONFIGS_B = tuple((s, t) for s in STOP_MODES_B for t in TARGET_MODES_B)
+PHASE5B = Study(
+    name="Phase 5b",
+    plan_doc="docs/research/17-phase5b-hypotheses.md",
+    setups=SETUPS_B,
+    configs=CONFIGS_B,
+    default=DEFAULT_B,
+    n_trials=len(SETUPS_B) * len(CONFIGS_B) + N_TRIALS,  # 8 + 20 = 28
+    seed=20261029,
+    control=CONTROL_B,
+    engine=SignalEngineB,
+    names=NAMES_B,
+    gate_fallback="B2",
+    first="2026-04-01",
+    last="2026-07-29",
+    features="data/features-b",
+    ticks="data/ticks-b",
+    out="reports/phase5b",
+)
+STUDIES = {"5": PHASE5, "5b": PHASE5B}
 
 
 def cfg_name(c: tuple[str, str]) -> str:
@@ -75,8 +148,8 @@ class StockDay:
     row: float
 
 
-def stock_day(symbol: str, day: str, records: Iterable[dict]) -> StockDay:
-    engine = SignalEngine()
+def stock_day(symbol: str, day: str, records: Iterable[dict], study: Study = PHASE5) -> StockDay:
+    engine = study.engine()
     signals: list[Signal] = []
     ends: list[int] = []
     atr, row = None, 0.0
@@ -93,13 +166,15 @@ def stock_day(symbol: str, day: str, records: Iterable[dict]) -> StockDay:
     return StockDay(symbol, day, signals, ends, atr, row)
 
 
-def load_stock_days(features: Path, symbols: list[str], days: list[str] | None) -> list[StockDay]:
+def load_stock_days(
+    features: Path, symbols: list[str], days: list[str] | None, study: Study = PHASE5
+) -> list[StockDay]:
     out = []
     for symbol in symbols:
         for path in sorted((features / symbol).glob("*.jsonl.gz")):
             day = path.name.split(".")[0]
             if days is None or day in days:
-                out.append(stock_day(symbol, day, read_records(path)))
+                out.append(stock_day(symbol, day, read_records(path), study))
     return out
 
 
@@ -143,9 +218,11 @@ def folds(days: list[str]) -> list[tuple[list[str], list[str]]]:
     return out
 
 
-def choose(trades_by_cfg: dict[tuple[str, str], list[Trade]], train: set[str]) -> tuple[str, str]:
-    best, best_mean = BOOK_DEFAULT, None
-    for cfg in CONFIGS:
+def choose(
+    trades_by_cfg: dict[tuple[str, str], list[Trade]], train: set[str], study: Study = PHASE5
+) -> tuple[str, str]:
+    best, best_mean = study.default, None
+    for cfg in study.configs:
         rs = [t.r for t in trades_by_cfg.get(cfg, []) if t.day in train]
         if len(rs) < MIN_TRAIN_TRADES:
             continue
@@ -153,7 +230,7 @@ def choose(trades_by_cfg: dict[tuple[str, str], list[Trade]], train: set[str]) -
         if (
             best_mean is None
             or m > best_mean + 1e-12
-            or (abs(m - best_mean) <= 1e-12 and cfg == BOOK_DEFAULT)
+            or (abs(m - best_mean) <= 1e-12 and cfg == study.default)
         ):
             best, best_mean = cfg, m
     return best
@@ -275,6 +352,7 @@ def account_replay(trades: list[Trade], limits: RiskLimits, equity: float = STAR
 @dataclass
 class Result:
     days: list[str]
+    study: Study = PHASE5
     folds: list[dict] = field(default_factory=list)
     full: dict = field(default_factory=dict)  # setup -> cfg -> summary on all days
     oos: dict = field(default_factory=dict)  # setup -> summary + tests
@@ -293,10 +371,12 @@ def run(
     reps: int = 10_000,
     progress: Callable[[str], None] = lambda _: None,
     gate: CachedGate | None = None,
+    study: Study = PHASE5,
 ) -> Result:
     costs = costs or Costs()
     days = sorted({sd.day for sd in stock_days})
-    res = Result(days)
+    res = Result(days, study)
+    SETUPS, CONFIGS = study.setups, study.configs  # noqa: N806 (the study's, shadowing Phase 5's)
     by_setup: dict[str, list[Signal]] = {s: [] for s in SETUPS}
     for sd in stock_days:
         for sig in sd.signals:
@@ -321,7 +401,7 @@ def run(
     for i, (train, test) in enumerate(folds(days)):
         fold = {"fold": i + 1, "train": [train[0], train[-1]], "test": [test[0], test[-1]], "chosen": {}}
         for s in SETUPS:
-            cfg = choose(trades[s], set(train))
+            cfg = choose(trades[s], set(train), study)
             picked_folds[s].append((train, test, trades[s][cfg]))
             picked = [t for t in trades[s][cfg] if t.day in test]
             oos[s] += picked
@@ -331,19 +411,19 @@ def run(
     pvals = {s: stats.bootstrap_p([(t.day, t.r) for t in oos[s]], reps) if oos[s] else None for s in SETUPS}
     adjusted = stats.holm(pvals)
     # Control: random entries, as many per OOS stock-day as all hypotheses' signals there.
-    rng = random.Random(SEED)  # noqa: S311 - reproducible, not security
+    rng = random.Random(study.seed)  # noqa: S311 - reproducible, not security
     ctrl: list[Signal] = []
     test_set = set(test_days)
     for sd in sorted(stock_days, key=lambda x: (x.day, x.symbol)):
         if sd.day in test_set:
             ctrl += control_signals(sd, len(sd.signals), rng)
-    ctrl_trades, _ = run_signals(ctrl, ("atr", "2r"), quotes, costs)
+    ctrl_trades, _ = run_signals(ctrl, study.control, quotes, costs)
     ctrl_mean = fmean([t.r for t in ctrl_trades]) if ctrl_trades else None
     res.control = stats.summary([t.r for t in ctrl_trades]) | {"days": len(test_set)}
     for s in SETUPS:
         rs = [t.r for t in oos[s]]
         summ = stats.summary(rs)
-        d = stats.dsr(rs, trial_sharpes, N_TRIALS) if rs else None
+        d = stats.dsr(rs, trial_sharpes, study.n_trials) if rs else None
         checks = {
             "enough_trades": len(rs) >= MIN_OOS_TRADES,
             "significant_after_holm": adjusted[s] is not None
@@ -373,8 +453,8 @@ def run(
     }
     res.trades = sorted(every, key=lambda t: t.entry_ts)
     if gate is not None:
-        # Gate tested on what passed, or on H4 (the book's confirmation setup) if nothing did.
-        targets = [s for s in SETUPS if res.oos[s]["passes"]] or ["H4"]
+        # Gate tested on what passed, or on the study's fallback (Phase 5: H4) if nothing did.
+        targets = [s for s in SETUPS if res.oos[s]["passes"]] or [study.gate_fallback]
         signals = {sig.id: sig for sigs in by_setup.values() for sig in sigs}
         res.gate = {s: evaluate_gate(s, picked_folds[s], signals, gate) for s in targets}
     return res
@@ -399,17 +479,20 @@ NAMES = {
     "H4": "Support zone + confirmation",
     "H5": "Follow a buy-side sweep",
 }
+PHASE5.names.update(NAMES)
 
 
 def render(res: Result, missing: list[str]) -> str:
+    study = res.study
+    SETUPS, CONFIGS, NAMES = study.setups, study.configs, study.names  # noqa: N806
     passed = [s for s in SETUPS if res.oos.get(s, {}).get("passes")]
     test_days = len(res.folds) * TEST_DAYS
     lines = [
-        "# Phase 5 walk-forward results",
+        f"# {study.name} walk-forward results",
         "",
         f"Days: {len(res.days)} ({res.days[0] if res.days else '-'} to {res.days[-1] if res.days else '-'}),"
         f" {len(res.folds)} folds, {test_days} out-of-sample days.",
-        "Plan: docs/research/14-signal-hypotheses.md.",
+        f"Plan: {study.plan_doc}.",
         "Numbers are R per trade (1R = the loss at the stop), net of spread, slippage and per-share costs.",
         "",
         "## In plain words",
@@ -512,7 +595,7 @@ def write(res: Result, out: Path, missing: list[str]) -> Path:
     out.mkdir(parents=True, exist_ok=True)
     (out / "walkforward.md").write_text(render(res, missing), encoding="utf-8")
     keys = ("days", "folds", "full", "oos", "control", "account", "refusals", "gate")
-    data = {k: getattr(res, k) for k in keys}
+    data = {"study": res.study.name, "plan": res.study.plan_doc} | {k: getattr(res, k) for k in keys}
     data["missing"] = missing
     (out / "walkforward.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
     with (out / "trades.csv").open("w", newline="", encoding="utf-8") as fh:
@@ -536,20 +619,25 @@ def expected_days(first: str, last: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--features", type=Path, default=Path("data/features"))
-    p.add_argument("--ticks", type=Path, default=Path("data/ticks"))
-    p.add_argument("--out", type=Path, default=Path("reports/phase5"))
+    p.add_argument("--study", choices=sorted(STUDIES), default="5", help="5 (research/14), 5b (research/17)")
+    p.add_argument("--features", type=Path, help="default: the study's (data/features, data/features-b)")
+    p.add_argument("--ticks", type=Path, help="default: the study's (data/ticks, data/ticks-b)")
+    p.add_argument("--out", type=Path, help="default: the study's (reports/phase5, reports/phase5b)")
     p.add_argument("--symbols", default="SPY,QQQ,AAPL,MSFT,NVDA")
-    p.add_argument("--first", default="2026-07-31", help="first study day (pre-registered)")
-    p.add_argument("--last", default="2026-10-23", help="last study day (pre-registered)")
+    p.add_argument("--first", help="first study day (default: the pre-registered one)")
+    p.add_argument("--last", help="last study day (default: the pre-registered one)")
     p.add_argument("--risk-limits", type=Path, default=Path("config/risk_limits.yaml"))
     p.add_argument("--jev", action="store_true", help="also test the Jev gate (needs TYPESAFE_API_KEY)")
     a = p.parse_args(argv)
     from flowforge.research.quotes import CatalogQuotes
 
+    study = STUDIES[a.study]
+    a.features = a.features or Path(study.features)
+    a.ticks = a.ticks or Path(study.ticks)
+    a.out = a.out or Path(study.out)
     symbols = a.symbols.split(",")
-    wanted = expected_days(a.first, a.last)
-    sds = load_stock_days(a.features, symbols, wanted)
+    wanted = expected_days(a.first or study.first, a.last or study.last)
+    sds = load_stock_days(a.features, symbols, wanted, study)
     have = {(sd.symbol, sd.day) for sd in sds}
     missing = [f"{s} {d}" for s in symbols for d in wanted if (s, d) not in have]
     if not sds:
@@ -566,7 +654,9 @@ def main(argv: list[str] | None = None) -> int:
         else:
             a.out.mkdir(parents=True, exist_ok=True)
             gate = CachedGate(jev.decide, a.out / "jev_answers.jsonl")
-    res = run(sds, CatalogQuotes(a.ticks), limits, progress=lambda m: print(m, flush=True), gate=gate)
+    res = run(
+        sds, CatalogQuotes(a.ticks), limits, progress=lambda m: print(m, flush=True), gate=gate, study=study
+    )
     path = write(res, a.out, missing)
     print(f"Report: {path}")
     return 0

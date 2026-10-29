@@ -35,11 +35,11 @@ def _check(book, symbol="SPY", now=NOW, price=100.0, stop=99.0, volume=10_000.0,
 
 def test_sizing_takes_the_smallest_cap():
     d = _check(_book(), price=100.0, stop=99.0)
-    # risk: 0.5% of 10k = $50 / $1 = 50; notional: 10% = $1000 / $100 = 10
-    assert d.allowed and d.quantity == 10
+    # risk: 0.5% of 10k = $50 / $1 = 50; notional: 33% (operator, 2026-10-29) = $3300 / $100 = 33
+    assert d.allowed and d.quantity == 33
     assert d.sizing == {
         "by_risk": 50,
-        "by_notional": 10,
+        "by_notional": 33,
         "by_gross": 100,
         "by_volume": 500,
         "by_settled_cash": 100,
@@ -51,7 +51,7 @@ def test_sizing_takes_the_smallest_cap():
 
 
 def test_size_below_one_share_is_refused():
-    d = _check(_book(), price=2_000.0, stop=1_990.0)
+    d = _check(_book(), price=4_000.0, stop=3_990.0)  # 33% of 10k buys no $4,000 share
     assert not d.allowed and d.reason == "size rounds to zero shares"
 
 

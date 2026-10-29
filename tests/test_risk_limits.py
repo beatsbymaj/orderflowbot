@@ -29,7 +29,7 @@ def test_repo_config_loads_with_spec_defaults():
     loaded = load_risk_limits(REPO_CONFIG)
     lim = loaded.limits
     assert lim.per_trade.max_risk_pct == 0.5
-    assert lim.per_trade.max_position_notional_pct == 10
+    assert lim.per_trade.max_position_notional_pct == 33  # operator, 2026-10-29
     assert lim.portfolio.max_concurrent_positions == 3
     assert lim.loss.max_daily_loss_pct == 2
     assert lim.loss.max_weekly_drawdown_pct == 5

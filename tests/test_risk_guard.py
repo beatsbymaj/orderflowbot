@@ -44,9 +44,9 @@ def test_clean_entry_is_sized_by_the_tightest_limit(limits):
     # ask 100.02 + 10 bps = 100.12002 -> 100.12; risk/share 1.12; 0.5% of 10k = $50 -> 44 shares
     assert d.plan.limit_price == 100.12
     assert d.sizing["by_risk"] == math.floor(50 / 1.12)
-    assert d.sizing["by_notional"] == 9  # 10% of 10k / 100.12
-    assert d.plan.quantity == 9
-    assert d.as_dict()["plan"]["quantity"] == 9
+    assert d.sizing["by_notional"] == 32  # 33% of 10k / 100.12 (operator, 2026-10-29)
+    assert d.plan.quantity == 32
+    assert d.as_dict()["plan"]["quantity"] == 32
 
 
 def test_strategy_cap_and_volume_cap(limits):

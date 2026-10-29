@@ -36,9 +36,13 @@ from typing import Any
 
 from flowforge.data.ticks import VENUE, instrument_id
 from flowforge.ops.ib_paper_check import IB_VENUE, IbSettings, NotPaperError, assert_paper, mask_account
+from flowforge.signals.setups import SETUPS
 
 TRADER_ID = "FLOWFORGE-001"
 DATA_CLIENT = "ALPACA"
+# The IB data client only loads instruments into the cache (see build_node). It needs its own IB
+# connection id; the node's id + 100 stays clear of the node/watchdog (11) and the check (91).
+IB_DATA_CLIENT_ID_OFFSET = 100
 DEFAULT_SYMBOLS = "SPY,QQQ,AAPL,MSFT,NVDA"  # the Phase 5 study names
 LIVE_FEEDS = ("sip", "iex")
 
@@ -110,6 +114,9 @@ def setups_for_paper(
                 f"{', '.join(refused)} did not pass the walk-forward; only {passed or 'none'} may trade"
             )
         passed = [s for s in passed if s in requested]
+    unknown = [s for s in passed if s not in SETUPS]
+    if unknown:  # e.g. a Phase 5b setup: the paper strategy only knows H1-H5 so far
+        raise PaperRefused(f"{', '.join(unknown)} passed, but the paper strategy can't trade it yet")
     out: dict[str, tuple[str, str]] = {}
     for s in passed:
         chosen = (folds[-1].get("chosen") or {}).get(s, {}).get("config") if folds else None
@@ -184,6 +191,8 @@ def instrument_provider_config(symbols: list[str]) -> Any:
 
 def build_node(settings: IbSettings, plan: Plan, paths: Paths, alpaca_factory: Any = None) -> Any:
     from nautilus_trader.adapters.interactive_brokers import (
+        InteractiveBrokersDataClientConfig,
+        InteractiveBrokersDataClientFactory,
         InteractiveBrokersExecutionClientConfig,
         InteractiveBrokersExecutionClientFactory,
     )
@@ -204,12 +213,22 @@ def build_node(settings: IbSettings, plan: Plan, paths: Paths, alpaca_factory: A
         account_id=settings.account_id,
         instrument_provider=instrument_provider_config(plan.symbols),
     )
+    # Only the IB data client puts its loaded instruments into the cache; the exec client keeps
+    # them to itself (drill D1 failed 2026-10-29 without this). It registers for default routing,
+    # but every subscription names SYMBOL.XNAS, which routes to the Alpaca client's venue.
+    ib_data_config = InteractiveBrokersDataClientConfig(
+        host=settings.host,
+        port=settings.port,
+        client_id=settings.client_id + IB_DATA_CLIENT_ID_OFFSET,
+        instrument_provider=instrument_provider_config(plan.symbols),
+    )
     data_config = AlpacaDataClientConfig(feed=plan.feed, journal_path="data/live/journal.jsonl")
     return (
         LiveNode.builder("flowforge-paper", TraderId(TRADER_ID), Environment.LIVE)
         .with_risk_engine_config(risk_engine_config(limits))
         .with_reconciliation(True)
         .add_data_client(DATA_CLIENT, alpaca_factory or AlpacaDataClientFactory(), data_config)
+        .add_data_client(IB_VENUE, InteractiveBrokersDataClientFactory(), ib_data_config)
         # The IB client is the only execution client, so every order (SYMBOL.XNAS) goes to it.
         .add_exec_client(
             IB_VENUE, InteractiveBrokersExecutionClientFactory(), exec_config, RoutingConfig(default=True)

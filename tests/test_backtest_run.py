@@ -29,16 +29,18 @@ def test_backtest_produces_trades_and_respects_limits(result):
     assert summary["errors"] == 0
     assert summary["run"]["risk_limits_sha256"] == load_risk_limits(REPO_CONFIG).sha256
     trades = rec.trades
+    cap = load_risk_limits(REPO_CONFIG).limits.per_trade.max_position_notional_pct / 100
+    peak = max(e for _, e in rec.equity)
     # Every position opens and closes on the same day, inside regular hours.
     for t in trades:
         entry, exit_ = datetime.fromisoformat(t["entry_time"]), datetime.fromisoformat(t["exit_time"])
         assert entry.date() == exit_.date() and exit_.time() <= datetime.strptime("15:45", "%H:%M").time()
-        assert t["quantity"] * t["entry_price"] <= 10_000 * 0.10 * 1.1  # notional cap, with gains
+        assert t["quantity"] * t["entry_price"] <= peak * cap * 1.02  # notional cap, at the best equity seen
     # Cash account: each day's buys fit inside the day's settled cash (sales settle T+1).
     spent = Counter()
     for t in trades:
         spent[t["entry_time"][:10]] += t["quantity"] * t["entry_price"]
-    assert spent and max(spent.values()) <= 10_000 * 1.1
+    assert spent and max(spent.values()) <= peak * 1.02
     # Never more than three positions at once.
     events = sorted([(t["entry_time"], 1) for t in trades] + [(t["exit_time"], -1) for t in trades])
     open_now = 0

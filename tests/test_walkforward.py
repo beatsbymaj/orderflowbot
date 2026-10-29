@@ -219,3 +219,50 @@ def test_account_replay_cash_account_caps_buys_at_settled_cash(limits):
     assert c["trades_skipped"].get("settled cash used up for the day", 0) >= 1
     assert "settled cash used up for the day" not in m["trades_skipped"]
     assert "legacy PDT day-trade limit" not in c["trades_skipped"]
+
+
+def test_phase5b_study_holds_winners_to_the_close_and_counts_28_trials(limits, tmp_path):
+    """B1 rises all day (hold beats 2R); B2 falls to its stop. The 5b grid, default and control apply."""
+    quotes, qqq, sds = [], [], []
+    for d in days(40):
+        day = date.fromisoformat(d)
+        ends = [et_ns(h, m, day=day) for h in range(9, 16) for m in range(0, 60, 5)]
+        ends = [e for e in ends if et_ns(9, 35, day=day) <= e <= et_ns(15, 45, day=day)]
+        for e in ends:
+            quotes += [(e - NS // 2, 99.58, 99.60), (e + NS // 10, 99.59, 99.61)]
+        win, lose = et_ns(10, 7, day=day), et_ns(11, 7, day=day)
+        quotes += [(win - NS // 2, 99.58, 99.60), (win + NS // 10, 99.59, 99.61)]
+        quotes += [(et_ns(15, 54, day=day), 104.0, 104.02)]  # held to 15:55: +4.4 vs 1.35 risk
+        qqq += [
+            (lose - NS // 2, 99.58, 99.60),
+            (lose + NS // 10, 99.59, 99.61),
+            (lose + 30 * NS, 97.0, 97.02),
+        ]
+        b1 = [Signal("B1", "SPY", win, d, 98.3, 99.6, 0.05, 5.0, (), (), "drive")]
+        b2 = [Signal("B2", "QQQ", lose, d, 98.3, 99.6, 0.05, 5.0, (), (), "fail")]
+        sds += [wf.StockDay("SPY", d, b1, ends, 5.0, 0.05), wf.StockDay("QQQ", d, b2, [], 5.0, 0.05)]
+    res = wf.run(sds, MemoryQuotes({"SPY": quotes, "QQQ": qqq}), limits, reps=300, study=wf.PHASE5B)
+    assert wf.PHASE5B.n_trials == 28 and set(res.oos) == {"B1", "B2", "B3", "B4"}
+    assert res.folds[0]["chosen"]["B1"]["config"] == "level/hold"
+    assert res.folds[0]["chosen"]["B3"]["config"] == "level/hold"  # no trades: the default
+    assert res.oos["B1"]["exit_reasons"] == {"eod": 20} and res.oos["B1"]["mean_r"] > 2
+    assert not res.oos["B2"]["passes"] and res.oos["B2"]["mean_r"] < 0
+    assert res.control["trades"] > 0
+    path = wf.write(res, tmp_path, [])
+    text = path.read_text()
+    assert text.startswith("# Phase 5b walk-forward results") and "docs/research/17" in text
+    assert "B1 Opening drive" in text
+    data = json.loads((tmp_path / "walkforward.json").read_text())
+    assert data["study"] == "Phase 5b" and data["oos"]["B1"]["trades"] == 20
+    assert ",," in (tmp_path / "trades.csv").read_text()  # held trades have no target
+
+
+def test_cli_picks_the_study_defaults(tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        wf, "load_stock_days", lambda f, s, d, study: seen.update(f=f, d=d, study=study) or []
+    )
+    monkeypatch.chdir(tmp_path)
+    assert wf.main(["--study", "5b"]) == 1
+    assert str(seen["f"]) == "data/features-b" and seen["study"] is wf.PHASE5B
+    assert seen["d"][0] == "2026-04-01" and seen["d"][-1] == "2026-07-29"
