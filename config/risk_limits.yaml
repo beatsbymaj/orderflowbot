@@ -12,7 +12,7 @@ version: 1
 
 per_trade:
   max_risk_pct: 0.5               # spec default: loss at the stop, as % of equity
-  max_position_notional_pct: 10   # spec default
+  max_position_notional_pct: 33   # operator set 33 on 2026-10-29 (was spec default 10): 25-100 shares on ~$50k, 3 positions, no leverage
   require_stop: true              # spec default: every entry has a predefined stop
   max_slippage_bps: 10            # Claude default: marketable-limit band vs. NBBO
   max_price_deviation_bps: 50     # Claude default: reject if limit is this far from last NBBO mid
