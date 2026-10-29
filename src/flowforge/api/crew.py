@@ -17,10 +17,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 # The order the work flows in, left to right on the screen; the last three support it.
-CHAIN = ("scout", "analyst", "hunter", "oracle", "guardian", "trader")
-SUPPORT = ("sentinel", "herald", "scribe")
+CHAIN = ("scout", "tape", "strategist", "jev", "guard", "executor")
+SUPPORT = ("watchdog", "herald", "archivist")
 
-JOURNAL_ACTIVE_S = 120  # the scribe counts as writing if the last record is this recent
+JOURNAL_ACTIVE_S = 120  # the archivist counts as writing if the last record is this recent
 
 
 @dataclass
@@ -90,10 +90,10 @@ def build_crew(i: CrewInputs) -> list[Agent]:
         mode = "shadow: asks, never vetoes" if i.jev_shadow else "can veto a signal"
         oracle = (node_state, f"{_plural(jev, 'answer')} today, {mode}")
 
-    if not node_up:
-        guardian = ("off", why_off)
-    elif stopped:
+    if stopped:  # shown with the node down too: it is what keeps the next start from trading
         guardian = ("blocked", "kill switch on: no new trades" if i.kill_on else f"halted: {i.halt}")
+    elif not node_up:
+        guardian = ("off", why_off)
     else:
         guardian = (node_state, f"{_plural(decisions, 'decision')} today")
 
@@ -126,26 +126,27 @@ def build_crew(i: CrewInputs) -> list[Agent]:
     else:
         scribe = ("ready" if node_up else "off", f"last entry {i.last_record_age_s / 60:.0f} min ago")
 
+    # Names and ids as the operator first saw them on the dashboard (2026-10-29).
     rows = {
-        "scout": ("Scout", "Market data", scout),
-        "analyst": (
-            "Analyst",
-            "Order flow features",
+        "scout": ("Scout", "Alpaca market data", scout),
+        "tape": (
+            "Tape",
+            "Order-flow features",
             ("off", why_off) if not node_up else (node_state, "delta, imbalance, volume profile"),
         ),
-        "hunter": (
-            "Hunter",
-            "Setups",
+        "strategist": (
+            "Strategist",
+            "Setups H1–H5",
             ("off", why_off)
             if not node_up
             else (node_state, f"{_plural(signals, 'signal')}, {skipped:,} skipped today"),
         ),
-        "oracle": ("Oracle", "Jev second opinion", oracle),
-        "guardian": ("Guardian", "Risk limits", guardian),
-        "trader": ("Trader", "Orders at IBKR paper", trader),
-        "sentinel": ("Sentinel", "Watchdog", sentinel),
+        "jev": ("Jev", "AI trade gate", oracle),
+        "guard": ("Guard", "RiskGuard limits", guardian),
+        "executor": ("Executor", "IBKR paper orders", trader),
+        "watchdog": ("Watchdog", "Emergency seller", sentinel),
         "herald": ("Herald", "Phone alerts", herald),
-        "scribe": ("Scribe", "Journal", scribe),
+        "archivist": ("Archivist", "Journal and reports", scribe),
     }
     return [Agent(k, n, r, s, d) for k, (n, r, (s, d)) in rows.items()]
 

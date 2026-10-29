@@ -332,6 +332,14 @@
     try { await ROUTES[name][0](); } catch (err) { view.innerHTML = failed(err); }
     view.removeAttribute('aria-busy');
   }
+  // A new screen materialises once; the timed refreshes then redraw it in place.
+  let entering = null;
+  async function enter() {
+    view.classList.remove('enter'); clearTimeout(entering);
+    await render();
+    void view.offsetWidth; view.classList.add('enter');
+    entering = setTimeout(() => view.classList.remove('enter'), 700);
+  }
   function schedule() {
     clearInterval(timer);
     const every = (ROUTES[current()] || ROUTES.live)[1];
@@ -342,8 +350,23 @@
   window.addEventListener('hashchange', () => {
     if (Date.now() - statusAt > 10000) statusCache = null;
     view.setAttribute('aria-busy', 'true');
-    render(); schedule();
+    enter(); schedule();
   });
+
+  // ---------- light and dark: saved per browser, charts redrawn in the new colours ----------
+  const themeBtn = document.getElementById('theme-toggle');
+  function showTheme() {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    themeBtn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+    themeBtn.querySelector('.tip').textContent = dark ? 'Light theme' : 'Dark theme';
+  }
+  themeBtn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('flowforge-theme', next); } catch { /* not saved; still switches */ }
+    showTheme(); render();
+  });
+  showTheme();
 
   // ---------- the kill switch (on only) ----------
   const dlg = document.getElementById('kill-dialog'), form = document.getElementById('kill-form'), kerr = document.getElementById('kill-error');
@@ -367,5 +390,5 @@
     } finally { go.disabled = false; }
   });
 
-  render(); schedule();
+  enter(); schedule();
 })();

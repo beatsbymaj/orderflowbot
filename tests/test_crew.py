@@ -43,9 +43,9 @@ def states(i: CrewInputs) -> dict[str, str]:
 def test_a_running_node_in_market_hours_has_its_chain_working():
     agents = {a.id: a for a in build_crew(RUNNING)}
     assert [a.state for a in agents.values()] == ["working"] * 7 + ["ready", "working"]
-    assert agents["hunter"].detail == "3 signals, 1 skipped today"
-    assert agents["trader"].detail == "2 orders, 1 fill today"
-    assert agents["oracle"].detail == "3 answers today, shadow: asks, never vetoes"
+    assert agents["strategist"].detail == "3 signals, 1 skipped today"
+    assert agents["executor"].detail == "2 orders, 1 fill today"
+    assert agents["jev"].detail == "3 answers today, shadow: asks, never vetoes"
     assert crew_summary(build_crew(RUNNING))["line"] == "8 of 9 agents working"
 
 
@@ -63,50 +63,52 @@ def test_nothing_running_is_all_off_and_says_so():
     )
     assert set(states(i).values()) == {"off"}
     agents = {a.id: a for a in build_crew(i)}
-    assert agents["trader"].detail == "IB Gateway not connected"
-    assert agents["oracle"].detail == "switched off until the tests say it helps"
+    assert agents["executor"].detail == "IB Gateway not connected"
+    assert agents["jev"].detail == "switched off until the tests say it helps"
     assert crew_summary(build_crew(i))["line"] == "Every agent is off: the bot isn't running"
 
 
-def test_kill_switch_blocks_guardian_and_trader_only():
+def test_kill_switch_blocks_guard_and_executor_only():
     s = states(replace(RUNNING, kill_on=True))
-    assert s["guardian"] == s["trader"] == "blocked" and s["scout"] == "working"
+    assert s["guard"] == s["executor"] == "blocked" and s["scout"] == "working"
     summary = crew_summary(build_crew(replace(RUNNING, kill_on=True)))
-    assert summary["line"] == "Guardian and Trader stopped by the kill switch or a halt"
+    assert summary["line"] == "Guard and Executor stopped by the kill switch or a halt"
     halted = {a.id: a for a in build_crew(replace(RUNNING, halt="daily loss limit"))}
-    assert halted["guardian"].detail == "halted: daily loss limit"
+    assert halted["guard"].detail == "halted: daily loss limit"
 
 
 def test_market_closed_is_ready_not_working():
     i = replace(RUNNING, live=False, last_record_age_s=600.0, watchdog_age_s=40.0, jev_shadow=False)
     s = states(i)
-    assert s["scout"] == s["analyst"] == s["guardian"] == s["trader"] == "ready"
-    assert s["sentinel"] == "off" and s["scribe"] == "ready"
+    assert s["scout"] == s["tape"] == s["guard"] == s["executor"] == "ready"
+    assert s["watchdog"] == "off" and s["archivist"] == "ready"
     agents = {a.id: a for a in build_crew(i)}
-    assert agents["scout"].detail == "market closed" and agents["scribe"].detail == "last entry 10 min ago"
-    assert agents["oracle"].detail.endswith("can veto a signal")
+    assert agents["scout"].detail == "market closed" and agents["archivist"].detail == "last entry 10 min ago"
+    assert agents["jev"].detail.endswith("can veto a signal")
     assert crew_summary(build_crew(i))["line"] == "Standing by: nothing to do right now"
 
 
 def test_stale_node_and_quiet_tape():
     stale = {a.id: a for a in build_crew(replace(RUNNING, node_age_s=40.0))}
-    assert stale["analyst"].state == "off" and stale["analyst"].detail == "no heartbeat for 40 s"
-    assert stale["oracle"].state == "off" and stale["scribe"].state == "off"
+    assert stale["tape"].state == "off" and stale["tape"].detail == "no heartbeat for 40 s"
+    assert stale["jev"].state == "off" and stale["archivist"].state == "off"
+    down = {a.id: a for a in build_crew(replace(RUNNING, node_age_s=None, kill_on=True))}
+    assert down["guard"].state == "blocked" and down["executor"].state == "off"
     quiet = {a.id: a for a in build_crew(replace(RUNNING, tape_age_s=90.0, last_record_age_s=None))}
     assert quiet["scout"].state == "ready" and quiet["scout"].detail == "waiting for the first trades"
-    assert quiet["scribe"].detail == "nothing written today"
+    assert quiet["archivist"].detail == "nothing written today"
 
 
 def test_crew_endpoint_reads_the_demo_files(demo):  # noqa: F811
     client, root, clock = demo
     c = client.get("/api/crew").json()
     s = {a["id"]: a["state"] for a in c["agents"]}
-    assert s["scout"] == s["hunter"] == s["guardian"] == s["trader"] == s["sentinel"] == "working"
-    assert s["oracle"] == "off" and s["herald"] == "ready"  # repo config: Jev off; demo env: ntfy set
-    assert c["chain"][0] == "scout" and c["support"] == ["sentinel", "herald", "scribe"]
+    assert s["scout"] == s["strategist"] == s["guard"] == s["executor"] == s["watchdog"] == "working"
+    assert s["jev"] == "off" and s["herald"] == "ready"  # repo config: Jev off; demo env: ntfy set
+    assert c["chain"][0] == "scout" and c["support"] == ["watchdog", "herald", "archivist"]
     (root / "run" / "KILL").write_text(json.dumps({"reason": "test", "by": "test", "ts_ns": clock["now"]}))
     s = {a["id"]: a["state"] for a in client.get("/api/crew").json()["agents"]}
-    assert s["guardian"] == "blocked"
+    assert s["guard"] == "blocked"
 
 
 def test_crew_endpoint_with_an_unreadable_jev_config(tmp_path):
