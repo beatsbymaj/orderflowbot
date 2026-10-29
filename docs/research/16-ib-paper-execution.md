@@ -27,6 +27,22 @@ Source: https://nautilustrader.io/docs/latest/integrations/interactive_brokers/ 
   takes `instrument_provider`; `InteractiveBrokersInstrumentProviderConfig` takes `load_ids`,
   `convert_exchange_to_mic_venue`, `symbol_to_mic_venue`.
 
+## Found on the paper gateway (2026-10-29)
+- Drill `instruments` FAILED: none of the 5 symbols reached the node's cache. Nautilus
+  2.0.0rc7 source (`crates/adapters/interactive_brokers/src/execution/order_state.rs`, tag
+  v2.0.0rc7, read 2026-10-29) says reconciliation needs instruments in the cache, "which the
+  data client fills from its own load set alone": the IB exec client loads `load_ids` into
+  its own provider but publishes only position and combo instruments. The paper node has no IB
+  data client (Alpaca supplies data), so the cache stayed empty.
+- Fix: the node adds an IB data client with the same provider config, client id = node id +
+  100. It registers for default routing (`data/core.rs` `venue()` returns None), while every
+  FlowForge subscription names `SYMBOL.XNAS`, which routes to the Alpaca client's venue first
+  (`crates/data/src/engine/registry.rs` `get_client`). It loads instruments and subscribes
+  to nothing.
+- The exec client publishes instruments for open positions at connect, so the watchdog still
+  sees positions it must flatten. Orders on an instrument with no position aren't reconciled
+  (UNVERIFIED in practice).
+
 ## UNVERIFIED (the drills check these on the paper gateway)
 - That `SPY.XNAS` loads SPY (an NYSE Arca listing) and that orders on it route sensibly
   (SMART vs. direct to Nasdaq). The page doesn't say how the contract exchange is chosen for
