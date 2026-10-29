@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en-US" data-theme="light">
+<html lang="en-US" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,12 +8,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/arcade.css">
 <script>
   // Apply the saved theme before the first paint, so the page never flashes the other one.
-  try { const t = localStorage.getItem('flowforge-theme'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch { /* no storage: light */ }
+  try { const t = localStorage.getItem('flowforge-theme'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch { /* no storage: dark */ }
 </script>
 </head>
 <body>
+<canvas id="space" aria-hidden="true"></canvas>
+<div class="planet" aria-hidden="true"><i></i></div>
 <div class="app">
   <nav class="rail" aria-label="FlowForge">
     <div class="mark" title="FlowForge">
@@ -37,8 +40,11 @@
     <!-- agent deck: filled by agents.js from /api/crew; each avatar moves only while its part of the bot works -->
     <section class="deck quiet" id="deck" aria-label="Agents">
       <div class="deck-head"><span><b>Crew</b> · live agent status</span><span class="count" id="deck-count">scanning…</span></div>
-      <div class="agents" id="agents"><div class="conduit" aria-hidden="true"><i></i><i></i><i></i></div></div>
+      <div class="agents" id="agents"><div class="conduit" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
+      <p class="say" id="say" aria-live="polite" hidden></p>
+      <div class="ticker" id="ticker" aria-hidden="true"></div>
     </section>
+    <div class="cheer" id="cheer" aria-live="polite"></div>
     <div id="view"></div>
   </main>
 </div>
@@ -62,5 +68,6 @@
 <script src="/static/charts.js"></script>
 <script src="/static/app.js"></script>
 <script src="/static/agents.js"></script>
+<script src="/static/arcade.js"></script>
 </body>
 </html>

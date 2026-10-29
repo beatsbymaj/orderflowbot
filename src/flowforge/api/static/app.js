@@ -364,6 +364,7 @@
     const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('flowforge-theme', next); } catch { /* not saved; still switches */ }
+    window.dispatchEvent(new CustomEvent('flowforge:theme', { detail: next }));
     showTheme(); render();
   });
   showTheme();

@@ -644,7 +644,9 @@ def create_app(paths: ApiPaths | None = None, clock=wall_clock_ns, port_check=_p
             counts=counts,
             last_record_age_s=age(read.records[-1]["ts_ns"]) if read.records else None,
         )
-        return {"now": _iso(now)} | crew_summary(build_crew(inputs))
+        # today's totals, so the dashboard can cheer a real fill (it never invents one)
+        tally = {k: counts.get(k, 0) for k in ("signal", "order_submit", "fill")}
+        return {"now": _iso(now), "tally": tally} | crew_summary(build_crew(inputs))
 
     @app.post("/api/kill")
     def kill(

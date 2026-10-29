@@ -106,6 +106,7 @@ def test_crew_endpoint_reads_the_demo_files(demo):  # noqa: F811
     assert s["scout"] == s["strategist"] == s["guard"] == s["executor"] == s["watchdog"] == "working"
     assert s["jev"] == "off" and s["herald"] == "ready"  # repo config: Jev off; demo env: ntfy set
     assert c["chain"][0] == "scout" and c["support"] == ["watchdog", "herald", "archivist"]
+    assert set(c["tally"]) == {"signal", "order_submit", "fill"} and all(v >= 0 for v in c["tally"].values())
     (root / "run" / "KILL").write_text(json.dumps({"reason": "test", "by": "test", "ts_ns": clock["now"]}))
     s = {a["id"]: a["state"] for a in client.get("/api/crew").json()["agents"]}
     assert s["guard"] == "blocked"
