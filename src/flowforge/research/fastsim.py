@@ -14,6 +14,7 @@ from datetime import datetime, time
 from flowforge.data.ticks import NS
 from flowforge.research.quotes import QuoteSource, iter_from, last_before
 from flowforge.signals.setups import ET, Plan, Signal, plan
+from flowforge.signals.setups_b import CONTROL_B, STOP_MODES_B, plan_b
 
 FLAT_AT = time(15, 55)
 
@@ -40,7 +41,7 @@ class Trade:
     entry: float
     shares: int
     stop: float
-    target: float
+    target: float | None  # None: held to the close (Phase 5b "hold")
     exit_ts: int
     exit: float
     exit_reason: str
@@ -87,7 +88,8 @@ def simulate(
         return Refusal(sig.setup, sig.symbol, sig.ts, "locked or crossed")
     if (ask - bid) / ((ask + bid) / 2) * 10_000 > costs.max_spread_bps:
         return Refusal(sig.setup, sig.symbol, sig.ts, "wide spread")
-    p: Plan | None = plan(sig, ask, stop_mode, target_mode)
+    planner = plan_b if stop_mode in (*STOP_MODES_B, CONTROL_B[0]) else plan  # Phase 5b or Phase 5 rules
+    p: Plan | None = planner(sig, ask, stop_mode, target_mode)
     if p is None:
         return Refusal(sig.setup, sig.symbol, sig.ts, "no plan")
     shares = int(costs.risk_usd // p.risk)
@@ -132,7 +134,7 @@ def simulate(
         entry=entry,
         shares=shares,
         stop=p.stop,
-        target=p.target,
+        target=None if math.isinf(p.target) else p.target,
         exit_ts=exit_ts,
         exit=exit_px,
         exit_reason=why,

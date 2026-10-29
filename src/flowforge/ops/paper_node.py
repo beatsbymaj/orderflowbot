@@ -36,6 +36,7 @@ from typing import Any
 
 from flowforge.data.ticks import VENUE, instrument_id
 from flowforge.ops.ib_paper_check import IB_VENUE, IbSettings, NotPaperError, assert_paper, mask_account
+from flowforge.signals.setups import SETUPS
 
 TRADER_ID = "FLOWFORGE-001"
 DATA_CLIENT = "ALPACA"
@@ -113,6 +114,9 @@ def setups_for_paper(
                 f"{', '.join(refused)} did not pass the walk-forward; only {passed or 'none'} may trade"
             )
         passed = [s for s in passed if s in requested]
+    unknown = [s for s in passed if s not in SETUPS]
+    if unknown:  # e.g. a Phase 5b setup: the paper strategy only knows H1-H5 so far
+        raise PaperRefused(f"{', '.join(unknown)} passed, but the paper strategy can't trade it yet")
     out: dict[str, tuple[str, str]] = {}
     for s in passed:
         chosen = (folds[-1].get("chosen") or {}).get(s, {}).get("config") if folds else None

@@ -99,6 +99,8 @@ Unchanged from research/14:
 
 The account check replays the out-of-sample trades with every limit in config/risk_limits.yaml
 as committed when the test runs: a cash account, $10,000, settled cash only, 10% notional cap.
+(2026-10-29, before any study data was downloaded: the operator raised the notional cap to
+33%. The check uses whatever the file says on the day it runs.)
 
 ## Pass bar
 A hypothesis passes only if all of these hold, on its out-of-sample trades:
