@@ -17,6 +17,8 @@ function Say($text) { $line = (Get-Date -Format "HH:mm:ss") + "  " + $text; Writ
 function EtNow { [System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId((Get-Date), "Eastern Standard Time") }
 
 Say "FlowForge morning start in $Repo"
+# the task's clock can be an hour off around a daylight-saving change: never start before 09:15 ET
+while ((EtNow).TimeOfDay -lt [TimeSpan]"09:15:00") { Start-Sleep 30 }
 
 # 1. Docker
 docker info *> $null
