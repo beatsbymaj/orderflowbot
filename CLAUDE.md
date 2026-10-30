@@ -47,7 +47,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Live stream watch (no trading): `docker compose --profile data run --rm live-watch` (docs/runbooks/live-stream.md)
 - Phase 3 features (offline): `docker compose --profile features run --rm features`; parity gate: `... run --rm features-parity` (docs/runbooks/features.md)
 - Kill switch / halts: `docker compose run --rm riskctl status|kill|release|reenable`; watchdog: `docker compose --profile paper up -d watchdog` (docs/runbooks/kill-switch.md)
-- Phase 5 walk-forward (offline, no orders): `docker compose --profile research run --rm walkforward` (`--jev` for the gate; docs/runbooks/walkforward.md). Hypotheses are pre-registered in docs/research/14; don't change them after seeing results.
+- Phase 5 walk-forward (offline, no orders): `docker compose --profile research run --rm walkforward` (`--jev` for the gate; `... walkforward python -m flowforge.research.walkforward --study 5b|5c` for later studies; docs/runbooks/walkforward.md). Hypotheses are pre-registered in docs/research/14, 17, 18; don't change them after seeing results.
 - Dashboard (read only + kill ON): `docker compose --profile paper up -d dashboard` → http://localhost:8080; demo data: `docker compose --profile demo up --build dashboard-demo` (docs/runbooks/dashboard.md)
 - Phone alerts and daily reports: `docker compose --profile paper up -d alerts daily` (docs/runbooks/alerts.md, daily-ops.md)
 - Paper node: `docker compose --profile paper run --rm node --preflight`, then `docker compose --profile paper up -d node` (docs/runbooks/paper-node.md)

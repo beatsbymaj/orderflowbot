@@ -53,6 +53,7 @@ class Signal:
     unfinished_lows: tuple[float, ...]
     reason: str
     facts: dict = field(default_factory=dict, compare=False)  # labelled context for Jev
+    exits: tuple[int, ...] = field(default=(), compare=False)  # Phase 5c: cross-down times (ns)
 
     @property
     def id(self) -> str:

@@ -15,6 +15,7 @@ from flowforge.data.ticks import NS
 from flowforge.research.quotes import QuoteSource, iter_from, last_before
 from flowforge.signals.setups import ET, Plan, Signal, plan
 from flowforge.signals.setups_b import CONTROL_B, STOP_MODES_B, plan_b
+from flowforge.signals.setups_c import STOP_MODES_C, plan_c
 
 FLAT_AT = time(15, 55)
 
@@ -88,7 +89,12 @@ def simulate(
         return Refusal(sig.setup, sig.symbol, sig.ts, "locked or crossed")
     if (ask - bid) / ((ask + bid) / 2) * 10_000 > costs.max_spread_bps:
         return Refusal(sig.setup, sig.symbol, sig.ts, "wide spread")
-    planner = plan_b if stop_mode in (*STOP_MODES_B, CONTROL_B[0]) else plan  # Phase 5b or Phase 5 rules
+    if stop_mode in STOP_MODES_C:
+        planner = plan_c  # Phase 5c
+    elif stop_mode in (*STOP_MODES_B, CONTROL_B[0]):
+        planner = plan_b  # Phase 5b
+    else:
+        planner = plan  # Phase 5
     p: Plan | None = planner(sig, ask, stop_mode, target_mode)
     if p is None:
         return Refusal(sig.setup, sig.symbol, sig.ts, "no plan")
@@ -104,8 +110,11 @@ def simulate(
     if entry <= p.stop:
         return Refusal(sig.setup, sig.symbol, sig.ts, "ask below stop at arrival")
     flat = flat_ns(sig.day)
+    # Phase 5c "cross" exit: sell at the first 5-min close showing a cross down, if before 15:55.
+    cross = next((t for t in sig.exits if t > sig.ts), None) if target_mode == "cross" else None
+    until = min(flat, cross) if cross is not None else flat
     exit_ts, exit_px, why = None, None, "eod"
-    for ts, b, _a in iter_from(quotes, sig.symbol, arrive + 1, flat):
+    for ts, b, _a in iter_from(quotes, sig.symbol, arrive + 1, until):
         if b <= 0:
             continue
         if b <= p.stop:
@@ -117,7 +126,9 @@ def simulate(
         exit_ts = ts + costs.latency_ns
         break
     if exit_ts is None:
-        exit_ts = flat + costs.latency_ns
+        if until < flat:
+            why = "cross"
+        exit_ts = until + costs.latency_ns
     last = last_before(quotes, sig.symbol, exit_ts, exit_ts - a[0])  # newest quote since entry
     exit_px = last[1] if last is not None and last[1] > 0 else a[1]
     gross = (exit_px - entry) * shares
