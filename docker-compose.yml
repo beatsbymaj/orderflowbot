@@ -7,7 +7,7 @@ services:
   ib-gateway:
     # Pinned: "stable" line, Gateway 10.50.1f with IBC 3.24.2 (docs/research/08, B7-B8).
     image: ghcr.io/gnzsnz/ib-gateway:10.50.1f
-    restart: always
+    restart: unless-stopped  # a manual stop survives a Docker restart (it came back by itself 2026-10-30)
     environment:
       TWS_USERID: ${TWS_USERID}
       TWS_PASSWORD: ${TWS_PASSWORD}
