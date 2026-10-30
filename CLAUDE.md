@@ -52,6 +52,7 @@ One Nautilus TradingNode: data clients, feature indicators/actors, strategies, J
 - Phone alerts and daily reports: `docker compose --profile paper up -d alerts daily` (docs/runbooks/alerts.md, daily-ops.md)
 - Paper node: `docker compose --profile paper run --rm node --preflight`, then `docker compose --profile paper up -d node` (docs/runbooks/paper-node.md)
 - Paper drills / soak: `docker compose --profile drill run --rm paper-drill instruments|round-trip|stop|takeover|restart`, `... paper-soak` (docs/runbooks/paper-drills.md); scorecard: `docker compose --profile check run --rm scorecard`
+- Cloud server (AWS Lightsail, paper, PC can sleep): docs/runbooks/aws-server.md; daily routine `scripts/server/flowforge-day.sh morning|evening` via `scripts/server/crontab.txt`
 - Read-only IBKR paper check: `docker compose --profile check run --rm ib-paper-check` (refuses non-paper settings; step by step in docs/runbooks/ib-paper-check.md)
 - Massive data for Claude Code (dev aid only, not a bot feed): `.mcp.json` + `/mcp` sign-in (docs/runbooks/massive-mcp.md)
 
