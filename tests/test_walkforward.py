@@ -241,7 +241,20 @@ def test_phase5b_study_holds_winners_to_the_close_and_counts_28_trials(limits, t
         b1 = [Signal("B1", "SPY", win, d, 98.3, 99.6, 0.05, 5.0, (), (), "drive")]
         b2 = [Signal("B2", "QQQ", lose, d, 98.3, 99.6, 0.05, 5.0, (), (), "fail")]
         sds += [wf.StockDay("SPY", d, b1, ends, 5.0, 0.05), wf.StockDay("QQQ", d, b2, [], 5.0, 0.05)]
-    res = wf.run(sds, MemoryQuotes({"SPY": quotes, "QQQ": qqq}), limits, reps=300, study=wf.PHASE5B)
+    seen = []
+    res = wf.run(
+        sds,
+        MemoryQuotes({"SPY": quotes, "QQQ": qqq}),
+        limits,
+        reps=300,
+        study=wf.PHASE5B,
+        on_trade=seen.append,
+    )
+    assert {t.setup for t in seen} >= {"B1", "B2", "CTRL"}  # every simulated trade, as it happened
+    with wf.LiveTrades(tmp_path / wf.LIVE_TRADES) as live:
+        live.write(seen[0])
+    row = json.loads((tmp_path / wf.LIVE_TRADES).read_text())
+    assert row["setup"] == seen[0].setup and set(row) == set(wf.LiveTrades.FIELDS)
     assert wf.PHASE5B.n_trials == 28 and set(res.oos) == {"B1", "B2", "B3", "B4"}
     assert res.folds[0]["chosen"]["B1"]["config"] == "level/hold"
     assert res.folds[0]["chosen"]["B3"]["config"] == "level/hold"  # no trades: the default
