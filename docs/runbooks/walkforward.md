@@ -67,3 +67,32 @@ docker compose --profile research run --rm crosscheck --symbol SPY --day 2026-10
 It writes `reports\phase5\crosscheck_SPY_2026-10-21_H4.json` with how many trades matched.
 The full simulator applies every risk limit (for example at most 3 day trades in 5 days on a
 small account), so it can take fewer trades than the fast tester.
+
+## Phase 5c: the 9/20 EMA crossover (docs/research/18)
+This tests two versions of the 9 EMA / 20 EMA crossover, long only: **C0** the plain cross, and
+**C1** the cross confirmed by trend, order flow, market structure, key levels and volume. It uses
+the Phase 5b spring days (2026-04-01 … 07-29) that are already on the PC, so **there is nothing new
+to download**. Wait until the Phase 5b features are finished (`data\features-b\summary.md` and,
+for IEX, `data\features-b-iex\summary.md` exist).
+
+1. Get the new code (the PR's branch or main after it merges) into the FlowForge folder, keeping
+   your `data`, `reports` and `.env`. Then rebuild the test image once:
+   ```powershell
+   docker compose --profile research build walkforward
+   ```
+2. Full tape (SIP):
+   ```powershell
+   docker compose --profile research run --rm walkforward python -m flowforge.research.walkforward --study 5c
+   ```
+3. Free feed (IEX), the one that decides paper:
+   ```powershell
+   docker compose --profile research run --rm walkforward python -m flowforge.research.walkforward --study 5c --features data/features-b-iex --ticks data/ticks-b-iex --out reports/phase5c-iex
+   ```
+4. Second look on the Aug–Oct days (reported, not part of the pass):
+   ```powershell
+   docker compose --profile research run --rm walkforward python -m flowforge.research.walkforward --study 5c-fall
+   docker compose --profile research run --rm walkforward python -m flowforge.research.walkforward --study 5c-fall --features data/features-iex --ticks data/ticks-iex --out reports/phase5c-fall-iex
+   ```
+Each writes `walkforward.md`, `walkforward.json` and `trades.csv` in its `reports\phase5c…`
+folder. If reading from `data\` is slow, mount the ticks from a Docker volume as in step 2 above
+(`-v <volume>:/app/data/ticks-b:ro`, matching the folder the command reads).

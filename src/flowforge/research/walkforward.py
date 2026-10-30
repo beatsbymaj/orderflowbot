@@ -3,6 +3,7 @@
     python -m flowforge.research.walkforward --features data/features --ticks data/ticks \\
         --out reports/phase5
     python -m flowforge.research.walkforward --study 5b      # Phase 5b: its own days and folders
+    python -m flowforge.research.walkforward --study 5c      # Phase 5c EMA crossover (research/18)
 
 Reads the Phase 3 feature files (data/features/<SYMBOL>/<day>.jsonl.gz) and the Phase 2
 quotes, runs every hypothesis in every grid configuration through the fast simulator, picks a
@@ -19,7 +20,7 @@ import json
 import random
 import sys
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from pathlib import Path
 from statistics import fmean
@@ -51,6 +52,14 @@ from flowforge.signals.setups_b import (
     STOP_MODES_B,
     TARGET_MODES_B,
     SignalEngineB,
+)
+from flowforge.signals.setups_c import (
+    DEFAULT_C,
+    NAMES_C,
+    SETUPS_C,
+    STOP_MODES_C,
+    TARGET_MODES_C,
+    SignalEngineC,
 )
 
 CONFIGS = tuple((s, t) for s in STOP_MODES for t in TARGET_MODES)
@@ -85,6 +94,9 @@ class Study:
     features: str
     ticks: str
     out: str
+    # Phase 5c: one engine per symbol, fed every day in order from the day before `first`, so
+    # its averages carry over (research/18). Earlier studies get a fresh engine each day.
+    carry: bool = False
 
 
 PHASE5 = Study(
@@ -125,7 +137,38 @@ PHASE5B = Study(
     ticks="data/ticks-b",
     out="reports/phase5b",
 )
-STUDIES = {"5": PHASE5, "5b": PHASE5B}
+# Phase 5c (docs/research/18): 2 setups x 3 exits; the deflated Sharpe counts 5 and 5b too.
+CONFIGS_C = tuple((s, t) for s in STOP_MODES_C for t in TARGET_MODES_C)
+PHASE5C = Study(
+    name="Phase 5c",
+    plan_doc="docs/research/18-ema-crossover-hypotheses.md",
+    setups=SETUPS_C,
+    configs=CONFIGS_C,
+    default=DEFAULT_C,
+    n_trials=len(SETUPS_C) * len(CONFIGS_C) + PHASE5B.n_trials,  # 6 + 28 = 34
+    seed=20261030,
+    control=CONTROL_B,
+    engine=SignalEngineC,
+    names=NAMES_C,
+    gate_fallback="C1",
+    first="2026-04-01",
+    last="2026-07-29",
+    features="data/features-b",
+    ticks="data/ticks-b",
+    out="reports/phase5c",
+    carry=True,
+)
+# The research/18 second look: same rules on the Phase 5 days, reported, not part of the pass.
+PHASE5C_FALL = replace(
+    PHASE5C,
+    name="Phase 5c second look",
+    first="2026-07-31",
+    last="2026-10-23",
+    features="data/features",
+    ticks="data/ticks",
+    out="reports/phase5c-fall",
+)
+STUDIES = {"5": PHASE5, "5b": PHASE5B, "5c": PHASE5C, "5c-fall": PHASE5C_FALL}
 
 
 def cfg_name(c: tuple[str, str]) -> str:
@@ -148,8 +191,10 @@ class StockDay:
     row: float
 
 
-def stock_day(symbol: str, day: str, records: Iterable[dict], study: Study = PHASE5) -> StockDay:
-    engine = study.engine()
+def stock_day(
+    symbol: str, day: str, records: Iterable[dict], study: Study = PHASE5, engine: object | None = None
+) -> StockDay:
+    engine = engine or study.engine()
     signals: list[Signal] = []
     ends: list[int] = []
     atr, row = None, 0.0
@@ -163,6 +208,8 @@ def stock_day(symbol: str, day: str, records: Iterable[dict], study: Study = PHA
             prior = (rec.get("context") or {}).get("prior_day") or {}
             if prior.get("high") is not None:
                 atr = prior["high"] - prior["low"]
+    if hasattr(engine, "finish"):
+        signals = engine.finish(signals)
     return StockDay(symbol, day, signals, ends, atr, row)
 
 
@@ -171,10 +218,31 @@ def load_stock_days(
 ) -> list[StockDay]:
     out = []
     for symbol in symbols:
-        for path in sorted((features / symbol).glob("*.jsonl.gz")):
+        paths = sorted((features / symbol).glob("*.jsonl.gz"))
+        if study.carry:
+            out += _carried(symbol, paths, days, study)
+            continue
+        for path in paths:
             day = path.name.split(".")[0]
             if days is None or day in days:
                 out.append(stock_day(symbol, day, read_records(path), study))
+    return out
+
+
+def _carried(symbol: str, paths: list[Path], days: list[str] | None, study: Study) -> list[StockDay]:
+    """One engine for the symbol, fed from the last file before the first study day (warm-up,
+    its signals dropped) through the last study day."""
+    named = [(p.name.split(".")[0], p) for p in paths]
+    first, last = (min(days), max(days)) if days else (named[0][0] if named else "", "9999")
+    before = [d for d, _ in named if d < first]
+    start = before[-1] if before else first
+    engine = study.engine()
+    out = []
+    for day, path in named:
+        if start <= day <= last:
+            sd = stock_day(symbol, day, read_records(path), study, engine)
+            if days is None or day in days:
+                out.append(sd)
     return out
 
 
@@ -619,7 +687,12 @@ def expected_days(first: str, last: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--study", choices=sorted(STUDIES), default="5", help="5 (research/14), 5b (research/17)")
+    p.add_argument(
+        "--study",
+        choices=sorted(STUDIES),
+        default="5",
+        help="5 (research/14), 5b (research/17), 5c and 5c-fall (research/18)",
+    )
     p.add_argument("--features", type=Path, help="default: the study's (data/features, data/features-b)")
     p.add_argument("--ticks", type=Path, help="default: the study's (data/ticks, data/ticks-b)")
     p.add_argument("--out", type=Path, help="default: the study's (reports/phase5, reports/phase5b)")
