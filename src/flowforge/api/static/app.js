@@ -345,6 +345,7 @@
         <div class="kpi"><div class="kpi-label">Last write</div><div class="kpi-value">${r ? esc(ago(r.age_s)) : '–'}</div><div class="note">${j ? `Jev file ${esc(ago(j.age_s))}` : 'log file'}</div></div>
       </section>
       <div class="grid" style="margin-top:24px">
+        ${pnlPanel(d.pnl, r)}
         <section class="panel s8 lab-log${r && r.state === 'running' ? ' running' : ''}"><header><h2>Live log</h2><span class="meta">last ${r ? r.lines.length : 0} lines</span></header>
           <pre class="log" id="lab-log">${r && r.lines.length ? r.lines.map((ln) => (ln.startsWith('Report:') ? `<b>${esc(ln)}</b>` : esc(ln))).join('\n') : '<span class="muted">Nothing written yet.</span>'}</pre></section>
         <section class="panel s4"><header><h2>Jev's latest answers</h2><span class="meta">${tau != null ? `takes a trade at ${num(tau, 2)} or more` : ''}</span></header>
@@ -354,6 +355,30 @@
       </div>`;
     const log = document.getElementById('lab-log');
     if (log) log.scrollTop = log.scrollHeight;
+    const cur = d.pnl && d.pnl.series.find((x) => x.name === d.pnl.current);
+    const el = document.getElementById('pnl');
+    if (el && cur) {
+      Charts.line(el, { labels: ['start', ...cur.points.map((_, i) => `trade ${Math.round(((i + 1) * cur.trades) / cur.points.length)}`)], series: [{ name: `${cur.name}, running total in R`, values: [0, ...cur.points] }], format: Charts.fmt.dec(2), tickFormat: Charts.fmt.dec(1), height: 240, reference: { value: 0, label: 'Break-even' }, endLabel: true });
+    }
+  }
+
+  // the running total of the test's simulated trades, live; 1R = the loss at the stop
+  function pnlPanel(p, r) {
+    if (!p || !p.series.length) {
+      return `<section class="panel s12"><header><h2>Live P&amp;L</h2><span class="meta">running total of the test's trades</span></header><div class="empty">${p ? 'No trades yet in this run.' : "No live trades yet. The line starts moving with the next test run: tests started before this screen existed don't write them."}</div></section>`;
+    }
+    const cur = p.series.find((x) => x.name === p.current);
+    const tone = (v) => (v > 0 ? 'pos' : v < 0 ? 'neg' : '');
+    const live = r && r.state === 'running';
+    return `<section class="panel s12 pnl${live ? ' running' : ''}"><header><h2>Live P&amp;L${live ? ' <span class="pill pos live-dot">Live</span>' : ''}</h2><span class="meta">${esc(p.run)}: practice numbers, $50 risked a trade, after costs</span></header>
+        <div class="pnl-head"><div><div class="kpi-label">Now testing</div><div class="pnl-name">${esc(cur.name)}</div></div>
+          <div><div class="kpi-label">Running total</div><div class="kpi-value ${tone(cur.total_r)}">${signed(cur.total_r, 2)}<small>R</small> <small class="${tone(cur.total_usd)}">${signed(cur.total_usd, 2)} USD</small></div></div>
+          <div><div class="kpi-label">Trades</div><div class="kpi-value">${cur.trades}<small>${cur.trades ? `${Math.round((100 * cur.wins) / cur.trades)}% won` : ''}</small></div></div>
+          <div><div class="kpi-label">Worst point</div><div class="kpi-value ${tone(cur.worst_r)}">${signed(cur.worst_r, 2)}<small>R</small></div></div></div>
+        <div class="chart" id="pnl"></div>
+        <div class="table-wrap"><table class="stack"><thead><tr><th>Setup and settings</th><th class="n">Trades</th><th class="n">Won</th><th class="n">Total R</th><th class="n">USD</th><th class="n">Worst R</th></tr></thead><tbody>
+          ${p.series.slice().reverse().map((x) => `<tr${x.name === p.current ? ' class="on"' : ''}><td>${esc(x.name)}</td><td class="n">${x.trades}</td><td class="n">${Math.round((100 * x.wins) / x.trades)}%</td><td class="n ${tone(x.total_r)}">${signed(x.total_r, 2)}</td><td class="n ${tone(x.total_usd)}">${signed(x.total_usd, 2)}</td><td class="n">${signed(x.worst_r, 2)}</td></tr>`).join('')}
+        </tbody></table></div></section>`;
   }
 
   // ---------- router ----------

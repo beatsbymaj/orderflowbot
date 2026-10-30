@@ -14,6 +14,7 @@ from pathlib import Path
 
 LOG_LINES = 80
 ANSWERS_SHOWN = 14
+PNL_POINTS = 300
 RUNNING_S = 1800  # no "Report:" line and a write this recent: still running (one H2 step can take 10+ min)
 # a second lock on top of the run never printing one (CLAUDE.md rule 5)
 SECRET = re.compile(r"(api[_-]?key|token|secret|password|bearer)\s*[=:]?\s*\S+", re.IGNORECASE)
@@ -107,9 +108,63 @@ def finished_reports(root: Path, now_s: float) -> list[dict]:
     )
 
 
+def _thin(values: list[float], most: int) -> list[float]:
+    """At most `most` points, always keeping the last one (the running total right now)."""
+    if len(values) <= most:
+        return values
+    step = len(values) / most
+    return [values[int(i * step)] for i in range(most - 1)] + [values[-1]]
+
+
+def live_pnl(root: Path, now_s: float) -> dict | None:
+    """The newest reports/<run>/live_trades.jsonl as running totals: one line per setup and
+    settings, in R (1R = the loss at the stop) and in dollars at the walk-forward's $50 risk."""
+    files = sorted(
+        (root / "reports").glob("*/live_trades.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    if not files:
+        return None
+    path = files[0]
+    series: dict[str, dict] = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        try:
+            t = json.loads(line)
+            r, usd = float(t["r"]), float(t["net_usd"])
+            name = f"{t['setup']} {t['config']}"
+        except (ValueError, KeyError, TypeError):
+            continue  # a half-written last line while the run appends
+        s = series.setdefault(name, {"name": name, "trades": 0, "wins": 0, "r": [], "usd": 0.0, "low": 0.0})
+        total = (s["r"][-1] if s["r"] else 0.0) + r
+        s["trades"] += 1
+        s["wins"] += r > 0
+        s["r"].append(total)
+        s["usd"] += usd
+        s["low"] = min(s["low"], total)
+    if not series:
+        return {"run": path.parent.name, "age_s": _age(path, now_s), "current": None, "series": []}
+    out = [
+        {
+            "name": s["name"],
+            "trades": s["trades"],
+            "wins": s["wins"],
+            "total_r": round(s["r"][-1], 3),
+            "total_usd": round(s["usd"], 2),
+            "worst_r": round(s["low"], 3),
+            "points": [round(v, 3) for v in _thin(s["r"], PNL_POINTS)],
+        }
+        for s in series.values()
+    ]
+    return {"run": path.parent.name, "age_s": _age(path, now_s), "current": out[-1]["name"], "series": out}
+
+
 def lab_view(root: Path, now_s: float, threshold: float | None) -> dict:
     return {
         "run": latest_run(root, now_s),
+        "pnl": live_pnl(root, now_s),
         "jev": jev_runs(root, now_s),
         "reports": finished_reports(root, now_s),
         "threshold": threshold,

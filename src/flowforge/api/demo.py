@@ -481,6 +481,28 @@ def lab_tick(out: Path, n: int) -> None:
             if k // 4 == len(DEMO_STEPS):
                 fh.write("Report: reports/demo-jev/walkforward.md\n")
     else:
+        step = min(max(k // 4, 0), len(DEMO_STEPS) - 1)
+        setup, cfg = DEMO_STEPS[step]
+        trades = out / "reports" / "demo-jev" / "live_trades.jsonl"
+        if k < 4:
+            trades.write_text("")
+        r = round((n * 7919 % 100) / 33 - 1.45, 3)  # made up, a little worse than even like most tests
+        with trades.open("a", encoding="utf-8") as fh:
+            fh.write(
+                json.dumps(
+                    {
+                        "setup": setup,
+                        "config": cfg,
+                        "symbol": "DEMO",
+                        "day": "2026-10-01",
+                        "exit_ts": n,
+                        "exit_reason": "stop" if r < 0 else "target",
+                        "r": r,
+                        "net_usd": round(r * 50, 2),
+                    }
+                )
+                + "\n"
+            )
         p = round((n * 37 % 100) / 100, 2)
         row = {
             "id": f"demo-{n}",

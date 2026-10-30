@@ -438,3 +438,8 @@ dialog::backdrop { background: rgba(13, 27, 46, .45); backdrop-filter: blur(3px)
 .log { margin: 0; max-height: 420px; overflow: auto; padding: 12px 14px; border-radius: 8px; background: var(--raised); color: var(--text); font: 12px/18px var(--mono); white-space: pre-wrap; word-break: break-word; }
 .log b { color: var(--positive); }
 .rows .what .track { margin-top: 6px; }
+.pnl-head { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 12px; }
+.pnl-name { margin-top: 6px; font: 600 16px/28px var(--mono); }
+.pnl .pos { color: var(--positive); } .pnl .neg { color: var(--negative); }
+.pnl tr.on td { background: var(--active); }
+@media (max-width: 640px) { .pnl-head { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

@@ -94,6 +94,10 @@ def test_unreadable_files_are_skipped(tmp_path):
     )
     (j,) = jev_runs(tmp_path, NOW)
     assert j["run"] == "good" and j["answers"] == 1
+    from flowforge.api.lab import live_pnl
+
+    (tmp_path / "reports" / "odd" / "live_trades.jsonl").mkdir()
+    assert live_pnl(tmp_path, NOW) is None
 
 
 def test_demo_lab_loops_through_a_pretend_run(tmp_path):
@@ -107,3 +111,47 @@ def test_demo_lab_loops_through_a_pretend_run(tmp_path):
     assert j["run"] == "demo-jev" and j["answers"] > 0 and "timeout" in j["reasons"]
     lab_tick(tmp_path, len(DEMO_STEPS) * 4 + 8)  # the loop starts over
     assert latest_run(tmp_path, NOW)["steps"] == 0
+
+
+def test_live_pnl_running_totals_per_setup(tmp_path):
+    from flowforge.api.lab import live_pnl
+
+    assert live_pnl(tmp_path, NOW) is None
+    run = tmp_path / "reports" / "phase5c"
+    run.mkdir(parents=True)
+    path = run / "live_trades.jsonl"
+    path.write_text("")
+    assert live_pnl(tmp_path, NOW)["series"] == [] and live_pnl(tmp_path, NOW)["current"] is None
+    rows = [("H1", "zone/volume", r) for r in (1.0, -1.0, -1.0, 2.5)] + [("C0", "cross", -1.0)]
+    path.write_text(
+        "\n".join(
+            json.dumps(
+                {
+                    "setup": s,
+                    "config": c,
+                    "symbol": "SPY",
+                    "day": "d",
+                    "exit_ts": 1,
+                    "exit_reason": "x",
+                    "r": r,
+                    "net_usd": r * 50,
+                }
+            )
+            for s, c, r in rows
+        )
+        + '\n{"setup": "C0", "r": '
+    )
+    p = live_pnl(tmp_path, NOW)
+    h1, c0 = p["series"]
+    assert p["run"] == "phase5c" and p["current"] == "C0 cross"
+    assert h1["points"] == [1.0, 0.0, -1.0, 1.5] and h1["total_r"] == 1.5 and h1["worst_r"] == -1.0
+    assert h1["wins"] == 2 and h1["total_usd"] == 75.0 and c0["trades"] == 1
+
+
+def test_long_runs_are_thinned_but_keep_the_latest_total():
+    from flowforge.api.lab import _thin
+
+    v = [float(i) for i in range(1000)]
+    t = _thin(v, 300)
+    assert len(t) == 300 and t[-1] == 999.0 and t[0] == 0.0
+    assert _thin([1.0, 2.0], 300) == [1.0, 2.0]
