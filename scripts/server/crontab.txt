@@ -1,0 +1,8 @@
+# FlowForge on the cloud server. Server clock is New York time (launch-script.sh).
+# Install once:  crontab ~/orderflowbot/scripts/server/crontab.txt
+# Mon-Fri 08:30 start everything; 09:20 try again (Mondays the gateway waits for your phone
+# approval; the second run does nothing if the node is already up); 16:10 stop the node
+# (it is flat 5 minutes before the bell).
+30 8 * * 1-5  /home/ubuntu/orderflowbot/scripts/server/flowforge-day.sh morning
+20 9 * * 1-5  /home/ubuntu/orderflowbot/scripts/server/flowforge-day.sh morning
+10 16 * * 1-5 /home/ubuntu/orderflowbot/scripts/server/flowforge-day.sh evening
