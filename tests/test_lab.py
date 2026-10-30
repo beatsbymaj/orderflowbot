@@ -28,6 +28,8 @@ def test_running_done_and_stopped_runs(tmp_path):
     assert r["state"] == "running" and r["steps"] == 2 and r["last_step"]["setup"] == "H2"
     assert r["log"] == "data/walkforward-jev.log" and r["lines"][-1].startswith("H2")
     touch(log, 900)
+    assert latest_run(tmp_path, NOW)["state"] == "running"  # slow steps write rarely
+    touch(log, 4000)
     assert latest_run(tmp_path, NOW)["state"] == "stopped"
     log.write_text(log.read_text() + "Report: reports/phase5-jev/walkforward.md\n")
     touch(log, 900)

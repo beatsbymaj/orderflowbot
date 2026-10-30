@@ -14,7 +14,7 @@ from pathlib import Path
 
 LOG_LINES = 80
 ANSWERS_SHOWN = 14
-RUNNING_S = 300  # a log written to this recently, with no "Report:" line yet, is still running
+RUNNING_S = 1800  # no "Report:" line and a write this recent: still running (one H2 step can take 10+ min)
 # a second lock on top of the run never printing one (CLAUDE.md rule 5)
 SECRET = re.compile(r"(api[_-]?key|token|secret|password|bearer)\s*[=:]?\s*\S+", re.IGNORECASE)
 STEP = re.compile(r"^(?P<setup>\w+) (?P<config>\S+): (?P<signals>\d+) signals, (?P<trades>\d+) trades$")

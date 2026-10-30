@@ -333,7 +333,7 @@
     const step = r && r.last_step;
     const sub = !r ? 'No research run yet. A walk-forward started from the runbook shows up here while it works.'
       : r.state === 'running' ? `A test is running: ${step ? `on ${step.setup} ${step.config}` : 'loading the days'}. This screen updates every 2 seconds.`
-      : r.state === 'done' ? `The last test finished. Its report is ${r.report}.` : `The last test stopped writing ${ago(r.age_s)} without finishing.`;
+      : r.state === 'done' ? `The last test finished. Its report is ${r.report}.` : `The last test stopped writing ${ago(r.age_s)} without finishing (no new line for 30 minutes).`;
     const verdict = (a) => (a.p_yes == null ? `<span class="pill warn">No answer</span>` : tau != null && a.p_yes >= tau ? '<span class="pill pos">Take it</span>' : '<span class="pill neg">Skip it</span>');
     view.innerHTML = `
       ${titleRow('Lab', sub, { actions: stamp() })}
