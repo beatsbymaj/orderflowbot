@@ -33,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from flowforge.api.crew import CrewInputs, build_crew, crew_summary
+from flowforge.api.lab import lab_view
 from flowforge.config.risk_limits import load_risk_limits
 from flowforge.execution.heartbeat import read_heartbeat, wall_clock_ns
 from flowforge.execution.journal import Journal
@@ -647,6 +648,15 @@ def create_app(paths: ApiPaths | None = None, clock=wall_clock_ns, port_check=_p
         # today's totals, so the dashboard can cheer a real fill (it never invents one)
         tally = {k: counts.get(k, 0) for k in ("signal", "order_submit", "fill")}
         return {"now": _iso(now), "tally": tally} | crew_summary(build_crew(inputs))
+
+    @app.get("/api/lab")
+    def lab() -> dict:
+        """Research runs as they happen: the newest walk-forward log and the Jev answers so far."""
+        try:
+            threshold = load_jev(paths.jev).threshold
+        except Exception:  # noqa: BLE001 - the screen still works without the config
+            threshold = None
+        return {"now": _iso(clock())} | lab_view(paths.root, clock() / NS, threshold)
 
     @app.post("/api/kill")
     def kill(

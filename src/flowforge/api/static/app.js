@@ -322,8 +322,42 @@
         <div class="panel"><dl class="kv"><dt><a href="#/approvals">Approvals</a></dt><dd>0 waiting</dd><dt><a href="#/proposals">Proposals</a></dt><dd>learning changes</dd></dl></div></section>`;
   }
 
+  // ---------- Lab: research runs as they happen (read only) ----------
+  const ago = (sec) => (sec == null ? '–' : sec < 90 ? `${Math.round(sec)} s ago` : sec < 5400 ? `${Math.round(sec / 60)} min ago` : `${Math.round(sec / 3600)} h ago`);
+  async function lab() {
+    const [d, s] = await Promise.all([api('/api/lab'), statusCache ? Promise.resolve(statusCache) : api('/api/status')]);
+    scope(s);
+    const r = d.run, j = d.jev[0], tau = d.threshold;
+    const STATE = { running: ['pos', 'Running'], done: ['', 'Finished'], stopped: ['warn', 'Stopped'] };
+    const [cls, label] = r ? STATE[r.state] : ['', 'No run'];
+    const step = r && r.last_step;
+    const sub = !r ? 'No research run yet. A walk-forward started from the runbook shows up here while it works.'
+      : r.state === 'running' ? `A test is running: ${step ? `on ${step.setup} ${step.config}` : 'loading the days'}. This screen updates every 2 seconds.`
+      : r.state === 'done' ? `The last test finished. Its report is ${r.report}.` : `The last test stopped writing ${ago(r.age_s)} without finishing.`;
+    const verdict = (a) => (a.p_yes == null ? `<span class="pill warn">No answer</span>` : tau != null && a.p_yes >= tau ? '<span class="pill pos">Take it</span>' : '<span class="pill neg">Skip it</span>');
+    view.innerHTML = `
+      ${titleRow('Lab', sub, { actions: stamp() })}
+      <section class="kpis" aria-label="Research run">
+        <div class="kpi lead"><div class="kpi-label">Test</div><div class="kpi-value"><span class="pill ${cls}${r && r.state === 'running' ? ' live-dot' : ''}">${label}</span></div><div class="note">${r ? esc(r.log) : 'data/walkforward*.log'}</div></div>
+        <div class="kpi"><div class="kpi-label">Steps done</div><div class="kpi-value">${r ? r.steps : '–'}</div><div class="note">${step ? `last: ${esc(step.setup)} ${esc(step.config)}, ${step.trades} trades` : 'one per setup and settings'}</div></div>
+        <div class="kpi"><div class="kpi-label">Jev answers</div><div class="kpi-value">${j ? j.answers : '–'}</div><div class="note">${j ? `${j.answered} with a yes-chance, ${esc(j.run)}` : 'none yet'}</div></div>
+        <div class="kpi"><div class="kpi-label">Jev speed</div><div class="kpi-value">${j && j.mean_latency_ms != null ? num(j.mean_latency_ms, 0) : '–'}<small>ms</small></div><div class="note">must answer within 750 ms</div></div>
+        <div class="kpi"><div class="kpi-label">Last write</div><div class="kpi-value">${r ? esc(ago(r.age_s)) : '–'}</div><div class="note">${j ? `Jev file ${esc(ago(j.age_s))}` : 'log file'}</div></div>
+      </section>
+      <div class="grid" style="margin-top:24px">
+        <section class="panel s8 lab-log${r && r.state === 'running' ? ' running' : ''}"><header><h2>Live log</h2><span class="meta">last ${r ? r.lines.length : 0} lines</span></header>
+          <pre class="log" id="lab-log">${r && r.lines.length ? r.lines.map((ln) => (ln.startsWith('Report:') ? `<b>${esc(ln)}</b>` : esc(ln))).join('\n') : '<span class="muted">Nothing written yet.</span>'}</pre></section>
+        <section class="panel s4"><header><h2>Jev's latest answers</h2><span class="meta">${tau != null ? `takes a trade at ${num(tau, 2)} or more` : ''}</span></header>
+          <ul class="rows">${j && j.recent.length ? j.recent.map((a) => `<li><span class="t">${a.p_yes == null ? '–' : num(a.p_yes, 2)}</span><div class="what">${verdict(a)}<span>${esc(a.reason)}${a.latency_ms != null ? `, ${num(a.latency_ms, 0)} ms` : ''}</span>${a.p_yes != null ? track(a.p_yes, 1) : ''}</div></li>`).join('') : '<li><div class="empty" style="grid-column:1/-1">No Jev answers yet. They appear once the test reaches the Jev step.</div></li>'}</ul></section>
+        <section class="panel s12"><header><h2>Finished reports</h2><span class="meta">reports/</span></header>
+          <ul class="rows">${d.reports.map((x) => `<li><span class="t">${esc(ago(x.age_s))}</span><div class="what">${esc(x.run)}<span>reports/${esc(x.run)}/walkforward.md</span></div></li>`).join('') || '<li><div class="empty" style="grid-column:1/-1">No reports yet.</div></li>'}</ul></section>
+      </div>`;
+    const log = document.getElementById('lab-log');
+    if (log) log.scrollTop = log.scrollHeight;
+  }
+
   // ---------- router ----------
-  const ROUTES = { live: [live, 5000], tape: [tape, 5000], signals: [signals, 10000], approvals: [approvals, 0], journal: [journal, 0], proposals: [proposals, 0], health: [health, 10000], settings: [settings, 0] };
+  const ROUTES = { live: [live, 5000], tape: [tape, 5000], signals: [signals, 10000], approvals: [approvals, 0], journal: [journal, 0], proposals: [proposals, 0], health: [health, 10000], lab: [lab, 2000], settings: [settings, 0] };
   const current = () => (location.hash.replace(/^#\//, '') || 'live').split('?')[0];
   async function render() {
     const name = ROUTES[current()] ? current() : 'live';

@@ -459,10 +459,48 @@ def beat(out: Path, day: date) -> None:
     (run / "tape.json").write_text(json.dumps(_tape(day, now)))
 
 
+DEMO_STEPS = [
+    (s, c) for s in ("H1", "H2", "H3", "H4", "H5") for c in ("zone/volume", "zone/2r", "atr/volume", "atr/2r")
+]
+
+
+def lab_tick(out: Path, n: int) -> None:
+    """Made-up research progress for the Lab screen: a log line every 4th tick, a Jev answer on the
+    others. It loops through a pretend run so the demo screen always has something moving."""
+    log, answers = out / "data" / "walkforward-demo.log", out / "reports" / "demo-jev" / "jev_answers.jsonl"
+    answers.parent.mkdir(parents=True, exist_ok=True)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    k = n % (len(DEMO_STEPS) * 4 + 8)
+    if k == 0:
+        log.write_text("Demo run: made-up numbers, not a real test\n")
+        answers.write_text("")
+    elif k % 4 == 0 and k // 4 <= len(DEMO_STEPS):
+        setup, cfg = DEMO_STEPS[k // 4 - 1]
+        with log.open("a", encoding="utf-8") as fh:
+            fh.write(f"{setup} {cfg}: {40 + 37 * k % 600} signals, {k % 17} trades\n")
+            if k // 4 == len(DEMO_STEPS):
+                fh.write("Report: reports/demo-jev/walkforward.md\n")
+    else:
+        p = round((n * 37 % 100) / 100, 2)
+        row = {
+            "id": f"demo-{n}",
+            "p_yes": None if n % 23 == 0 else p,
+            "reason": "timeout" if n % 23 == 0 else "ok",
+            "latency_ms": 180 + n * 53 % 400,
+            "model": "demo",
+        }
+        with answers.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row) + "\n")
+
+
 def keep_beating(out: Path, day: date, every_s: float = 1.0) -> threading.Thread:
     def loop() -> None:
+        n = 0
         while True:
             beat(out, day)
+            if n % 2 == 0:
+                lab_tick(out, n // 2)
+            n += 1
             time.sleep(every_s)
 
     th = threading.Thread(target=loop, name="demo-heartbeat", daemon=True)
