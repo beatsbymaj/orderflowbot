@@ -173,7 +173,7 @@ services:
       IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
       ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
       ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
-      ALPACA_FEED: ${ALPACA_FEED:-sip}
+      ALPACA_FEED: ${ALPACA_FEED:-iex}   # the free Alpaca plan streams IEX only (DECISIONS D13); sip needs Algo Trader Plus
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}    # only used when config/jev.yaml enables the gate
       FLOWFORGE_RUN_DIR: /var/run/flowforge
     volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]

@@ -323,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--symbols", default=DEFAULT_SYMBOLS)
-    p.add_argument("--feed", default=os.environ.get("ALPACA_FEED", "sip"), choices=["sip", "iex", "test"])
+    p.add_argument("--feed", default=os.environ.get("ALPACA_FEED", "iex"), choices=["sip", "iex", "test"])
     p.add_argument("--allow-iex", action="store_true", help="run on the IEX-only feed (not comparable)")
     p.add_argument("--setups", default="", help="narrow the walk-forward's passing setups, e.g. H4")
     p.add_argument("--preflight", action="store_true", help="print the plan and exit; connects to nothing")
