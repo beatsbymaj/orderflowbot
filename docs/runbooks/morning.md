@@ -17,7 +17,7 @@ What it does, in order, writing everything to `data\morning-<date>.log`:
    `paper-drill all` (instruments, round-trip, stop, takeover, restart). A failure stops the
    morning there; nothing else starts that day.
 5. Starts the watchdog and the paper node. `PAPER_NODE_ARGS` in `.env` sets the node's flags
-   (today: `--symbols=SPY,QQQ,AAPL,MSFT,NVDA --allow-iex --walkforward reports/phase5-iex/walkforward.json`,
+   (today: `--symbols=SPY,QQQ,AAPL,MSFT,NVDA --allow-iex --walkforward reports/phase5-iex-run2/walkforward.json`,
    which is shadow: no setup has passed the walk-forward, so no entries).
 
 Install once, in an admin PowerShell in the repo folder:
