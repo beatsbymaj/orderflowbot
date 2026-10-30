@@ -6,6 +6,7 @@ bigger than the position, and a journal entry explaining what happened.
 """
 
 from conftest import et_ns
+from nautilus_trader.model import OrderSide
 from sim import path, run_sim, to_data
 
 from flowforge.risk.guard import EntryRequest
@@ -30,6 +31,10 @@ def test_bracket_target_hit(limits, tmp_path):
     assert len(closed) == 1 and closed[0]["realized_pnl"] > 0
     assert r.strategy.manager.positions() == {}
     assert not r.alerts("critical")
+    sells = [o for o in r.engine.cache.orders() if o.side == OrderSide.SELL]
+    # stop and exit both sent, neither reduce-only: the IB adapter rejects that flag
+    # (UNSUPPORTED_REDUCE_ONLY, paper drill 2026-10-30), leaving the position without a stop
+    assert sells and not any(o.is_reduce_only for o in sells)
 
 
 def test_stop_gap_down_fills_through_and_the_loss_is_journaled(limits, tmp_path):
