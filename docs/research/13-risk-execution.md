@@ -30,9 +30,8 @@ Checked 2026-10-26. Re-verify monthly with the other research files.
 - IOC is listed as a US time in force; stop orders may be simulated by IBKR ("The broker
   simulates certain order types (for example, stop or conditional orders)"), which still means
   they are held at IBKR, not on our machine. https://www.interactivebrokers.com/en/trading/ordertypes.php (2026-10-26).
-  **UNVERIFIED:** IOC limit orders for US stocks through the Nautilus IB adapter; how the
-  adapter maps `reduce_only` for stocks (IBKR has no reduce-only flag for stocks as far as we
-  found). FlowForge's own check that a sell never exceeds the shares held doesn't rely on it.
+  **UNVERIFIED:** IOC limit orders for US stocks through the Nautilus IB adapter; `reduce_only` is rejected
+  by the adapter (VERIFIED 2026-10-30, docs/research/16), so FlowForge doesn't send it. FlowForge's own check that a sell never exceeds the shares held doesn't rely on it.
 - Order latency is still unpublished (DECISIONS.md D11). Backtests assume 150 ms.
 
 ## NautilusTrader 2.0.0rc7 behaviour found while testing (simulated venue)

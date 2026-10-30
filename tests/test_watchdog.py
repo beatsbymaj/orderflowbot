@@ -188,6 +188,7 @@ def test_flatten_strategy_cancels_first_then_sells_exactly_the_position(oms, acc
         if f.side == OrderSide.SELL and f.is_closed and f.filled_qty.as_double()
     ]
     assert len(sells) == 1  # the stop was cancelled, only the watchdog's sale filled
+    assert not any(o.is_reduce_only for o in engine.cache.orders())  # IB rejects reduce-only
     engine.dispose()
 
 

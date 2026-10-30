@@ -49,8 +49,15 @@ Source: https://nautilustrader.io/docs/latest/integrations/interactive_brokers/ 
   orders beyond a per-command `params` override. Drill `instruments` checks the ids and tick
   size; the round-trip report shows the fills.
 - That routing by `RoutingConfig(default=True)` sends XNAS orders to the IB client.
-- `reduce_only` handling: not mentioned in the docs. FlowForge never relies on it; every
-  sell is capped at the position by RiskGuard (`check_exit`).
+- ~~`reduce_only` handling: not mentioned in the docs.~~ **VERIFIED 2026-10-30 by drill
+  `round-trip` on IBKR paper:** the Nautilus IB execution client rejects any order with
+  `reduce_only=True` (`UNSUPPORTED_REDUCE_ONLY`). The drill's entry filled, then its stop and
+  three exit attempts were all rejected, so 1 SPY was left without a stop and the node turned
+  the kill switch on (report `reports/paper/drill-round-trip-2026-10-30T170511Z.md`). Fixed:
+  the strategy's stop and exit and the watchdog's flatten sell no longer set the flag. Every
+  sell stays capped at the shares held by RiskGuard (`check_exit`) and, in the watchdog, by
+  the account's own position; tests in `test_chaos_sim.py` and `test_watchdog.py` fail if a
+  sell is reduce-only again.
 - Outside-RTH flags for orders: not documented; FlowForge trades regular hours only.
 - IOC behaviour of IBKR paper fills (simulated against the live quote). Measured by drill.
 

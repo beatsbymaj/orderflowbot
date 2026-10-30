@@ -171,3 +171,12 @@
   .confetti { display: none; }
   .ticker .run { white-space: normal; }
 }
+
+/* Lab in the dark: a terminal glowing while a test runs */
+:root[data-theme="dark"] .log { background: rgba(3, 7, 16, .85); color: #a5f3fc; border: 1px solid rgba(34, 211, 238, .18); text-shadow: 0 0 6px rgba(34, 211, 238, .35); }
+:root[data-theme="dark"] .lab-log.running .log { box-shadow: inset 0 0 24px rgba(34, 211, 238, .12); }
+:root[data-theme="dark"] .lab-log.running .log::after { content: "▌"; color: #67e8f9; animation: dot 1s steps(2) infinite; }
+:root[data-theme="dark"] .pill.live-dot::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; animation: dot 1s ease-in-out infinite; }
+:root[data-theme="dark"] .pnl.running { box-shadow: 0 0 30px rgba(52, 211, 153, .12); }
+:root[data-theme="dark"] .pnl .kpi-value.pos { text-shadow: 0 0 12px rgba(52, 211, 153, .55); }
+:root[data-theme="dark"] .pnl .kpi-value.neg { text-shadow: 0 0 12px rgba(251, 113, 133, .55); }

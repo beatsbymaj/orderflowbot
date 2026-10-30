@@ -7,7 +7,7 @@ services:
   ib-gateway:
     # Pinned: "stable" line, Gateway 10.50.1f with IBC 3.24.2 (docs/research/08, B7-B8).
     image: ghcr.io/gnzsnz/ib-gateway:10.50.1f
-    restart: always
+    restart: unless-stopped  # a manual stop survives a Docker restart (it came back by itself 2026-10-30)
     environment:
       TWS_USERID: ${TWS_USERID}
       TWS_PASSWORD: ${TWS_PASSWORD}
@@ -141,6 +141,22 @@ services:
     entrypoint: ["python", "-m", "flowforge.ops.riskctl"]
     command: ["status"]
 
+  # Turns the kill switch off only if the node/watchdog/a drill pulled it and IBKR shows the
+  # paper account empty (ADR-0017; kill_switch.auto_release_when_flat). Never an operator kill.
+  auto-release:
+    build: {context: ., dockerfile: docker/node.Dockerfile}
+    profiles: ["ops"]
+    environment:
+      IB_HOST: ib-gateway
+      IB_PORT: "4004"
+      IB_CLIENT_ID: "92"
+      IB_TRADING_MODE: paper
+      IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
+    volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data"]
+    depends_on:
+      ib-gateway: {condition: service_healthy}
+    entrypoint: ["python", "-m", "flowforge.ops.auto_release"]
+
   # Phase 4: watches the kill switch and the node heartbeat; flattens on its own if the
   # node is gone (docs/runbooks/kill-switch.md). Paper only, same guards as the paper check.
   watchdog:
@@ -173,7 +189,7 @@ services:
       IB_ACCOUNT_ID: ${IB_ACCOUNT_ID}
       ALPACA_API_KEY_ID: ${ALPACA_API_KEY_ID:-}
       ALPACA_API_SECRET_KEY: ${ALPACA_API_SECRET_KEY:-}
-      ALPACA_FEED: ${ALPACA_FEED:-sip}
+      ALPACA_FEED: ${ALPACA_FEED:-iex}   # the free Alpaca plan streams IEX only (DECISIONS D13); sip needs Algo Trader Plus
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}    # only used when config/jev.yaml enables the gate
       FLOWFORGE_RUN_DIR: /var/run/flowforge
     volumes: ["flowforge-run:/var/run/flowforge", "./data:/app/data", "./reports:/app/reports"]

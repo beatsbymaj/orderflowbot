@@ -422,7 +422,8 @@ class GuardedStrategy(Strategy):
             Quantity.from_int(action.quantity),
             self.cache.instrument(iid).make_price(action.stop_price),
             time_in_force=TimeInForce.DAY,
-            reduce_only=True,
+            # no reduce_only: the IB adapter rejects it (UNSUPPORTED_REDUCE_ONLY, drill 2026-10-30);
+            # check_exit above already caps the sell at the shares held
             tags=[f"intent={action.intent_id}", "stop"],
         )
         self.manager.register_stop(
@@ -447,8 +448,7 @@ class GuardedStrategy(Strategy):
             instrument_id(action.symbol),
             OrderSide.SELL,
             Quantity.from_int(action.quantity),
-            time_in_force=TimeInForce.DAY,
-            reduce_only=True,
+            time_in_force=TimeInForce.DAY,  # no reduce_only (IB rejects it); capped by check_exit
             tags=[f"intent={action.intent_id}", "exit"],
         )
         self.manager.register_exit(action.intent_id, str(order.client_order_id))

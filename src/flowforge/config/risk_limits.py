@@ -100,6 +100,7 @@ class SessionLimits(_Frozen):
 class KillSwitchConfig(_Frozen):
     file_flag: str = Field(min_length=1)
     flatten_on_kill: bool
+    auto_release_when_flat: bool = False  # ops.auto_release, paper only (ADR-0017)
 
 
 class RiskLimits(_Frozen):

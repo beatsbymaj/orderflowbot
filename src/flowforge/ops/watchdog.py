@@ -238,8 +238,7 @@ def _flatten_strategy_class() -> type:
                     position.instrument_id,
                     OrderSide.SELL,
                     Quantity.from_int(qty),
-                    time_in_force=TimeInForce.DAY,
-                    reduce_only=True,
+                    time_in_force=TimeInForce.DAY,  # no reduce_only (IB rejects it); qty capped above
                     tags=["watchdog-flatten"],
                 )
                 self.sold_ids.add(str(order.client_order_id))

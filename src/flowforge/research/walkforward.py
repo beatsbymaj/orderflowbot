@@ -179,10 +179,40 @@ def load_stock_days(
 
 
 # -- simulation ------------------------------------------------------------------------------
+LIVE_TRADES = "live_trades.jsonl"
+
+
+class LiveTrades:
+    """Each simulated trade as one JSON line, written as it happens, so the Lab screen can draw
+    the running total in R. Started fresh for every run; the final numbers are in the report."""
+
+    FIELDS = ("setup", "config", "symbol", "day", "exit_ts", "exit_reason", "r", "net_usd")
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def __enter__(self) -> LiveTrades:
+        self.fh = self.path.open("w", encoding="utf-8")
+        return self
+
+    def write(self, t: Trade) -> None:
+        row = {k: getattr(t, k) for k in self.FIELDS}
+        self.fh.write(json.dumps(row) + "\n")
+        self.fh.flush()
+
+    def __exit__(self, *exc) -> None:
+        self.fh.close()
+
+
 def run_signals(
-    signals: list[Signal], config: tuple[str, str], quotes: QuoteSource, costs: Costs
+    signals: list[Signal],
+    config: tuple[str, str],
+    quotes: QuoteSource,
+    costs: Costs,
+    on_trade: Callable[[Trade], None] | None = None,
 ) -> tuple[list[Trade], list[Refusal]]:
-    """One setup, one configuration: one trade per symbol at a time."""
+    """One setup, one configuration: one trade per symbol at a time. `on_trade` sees each trade
+    as soon as it is simulated (the dashboard's Lab screen draws them live)."""
     trades, refused = [], []
     busy_until: dict[str, int] = {}
     for sig in sorted(signals, key=lambda s: (s.ts, s.symbol)):
@@ -192,6 +222,8 @@ def run_signals(
         if isinstance(res, Trade):
             trades.append(res)
             busy_until[sig.symbol] = res.exit_ts
+            if on_trade is not None:
+                on_trade(res)
         else:
             refused.append(res)
     return trades, refused
@@ -372,6 +404,7 @@ def run(
     progress: Callable[[str], None] = lambda _: None,
     gate: CachedGate | None = None,
     study: Study = PHASE5,
+    on_trade: Callable[[Trade], None] | None = None,
 ) -> Result:
     costs = costs or Costs()
     days = sorted({sd.day for sd in stock_days})
@@ -385,7 +418,7 @@ def run(
     for setup in SETUPS:
         trades[setup] = {}
         for cfg in CONFIGS:
-            ts, refused = run_signals(by_setup[setup], cfg, quotes, costs)
+            ts, refused = run_signals(by_setup[setup], cfg, quotes, costs, on_trade)
             trades[setup][cfg] = ts
             for r in refused:
                 key = f"{setup} {cfg_name(cfg)}: {r.reason}"
@@ -417,7 +450,7 @@ def run(
     for sd in sorted(stock_days, key=lambda x: (x.day, x.symbol)):
         if sd.day in test_set:
             ctrl += control_signals(sd, len(sd.signals), rng)
-    ctrl_trades, _ = run_signals(ctrl, study.control, quotes, costs)
+    ctrl_trades, _ = run_signals(ctrl, study.control, quotes, costs, on_trade)
     ctrl_mean = fmean([t.r for t in ctrl_trades]) if ctrl_trades else None
     res.control = stats.summary([t.r for t in ctrl_trades]) | {"days": len(test_set)}
     for s in SETUPS:
@@ -654,9 +687,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             a.out.mkdir(parents=True, exist_ok=True)
             gate = CachedGate(jev.decide, a.out / "jev_answers.jsonl")
-    res = run(
-        sds, CatalogQuotes(a.ticks), limits, progress=lambda m: print(m, flush=True), gate=gate, study=study
-    )
+    a.out.mkdir(parents=True, exist_ok=True)
+    with LiveTrades(a.out / LIVE_TRADES) as live:
+        res = run(
+            sds,
+            CatalogQuotes(a.ticks),
+            limits,
+            progress=lambda m: print(m, flush=True),
+            gate=gate,
+            study=study,
+            on_trade=live.write,
+        )
     path = write(res, a.out, missing)
     print(f"Report: {path}")
     return 0
