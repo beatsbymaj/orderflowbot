@@ -50,3 +50,4 @@ session:
 kill_switch:
   file_flag: /var/run/flowforge/KILL   # creating this file triggers the kill switch
   flatten_on_kill: true
+  auto_release_when_flat: true        # operator 2026-10-30: paper only; off again if the node/watchdog/drill pulled it and IBKR shows 0 positions, 0 orders; never an operator kill, never a halt (ADR-0017)

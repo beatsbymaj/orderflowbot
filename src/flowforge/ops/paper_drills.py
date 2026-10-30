@@ -13,14 +13,19 @@ watchdog service stopped (docs/runbooks/paper-drills.md).
     takeover     buy 1 share, crash the node, let the watchdog cancel the stop and sell
     restart      buy 1 share, crash the node, start a fresh node on the shares it doesn't know:
                  it must halt and turn the kill switch on; then the watchdog flattens
+    all          the five above in that order, one report each. Before every drill IBKR must
+                 show the account empty; a kill switch a drill turned on is turned off again
+                 by ops.auto_release (ADR-0017). Stops at the first failure.
 
 Every drill writes reports/paper/drill-<name>-<time>.json and .md and journals to
 data/journal/drills/. A drill that turns the kill switch on leaves it on: release it with
-`riskctl release` after reading the report (that is part of the drill).
+`riskctl release` after reading the report (that is part of the drill), or let `all` do it
+through ops.auto_release when risk_limits.yaml allows it.
 
 Usage:
     python -m flowforge.ops.paper_drills instruments
     python -m flowforge.ops.paper_drills round-trip
+    python -m flowforge.ops.paper_drills all
 """
 
 from __future__ import annotations
@@ -44,6 +49,7 @@ from flowforge.risk.orders import Phase
 
 DRILL_SYMBOL = "SPY"
 DRILLS = ("instruments", "round-trip", "stop", "takeover", "restart")
+PASSED_FILE = "drills-passed.json"
 MAX_TRIES = 3  # an IOC can miss in a fast market; try again a few seconds later
 RETRY_S = 5
 STOP_ACK_MAX_S = 5.0  # ADR-0013: the stop must be at the broker within 5 s of the fill
@@ -526,11 +532,61 @@ def write_report(rep: DrillReport, out: Path, records: list[dict] | None = None)
     return path
 
 
+def _ready(settings: IbSettings, check: Any, release: Any) -> str | None:
+    """None when the next drill may start: account empty at IBKR and the kill switch off."""
+    from flowforge.ops.ib_paper_check import run_check
+    from flowforge.ops.paper_node import Paths
+
+    risk_limits = Paths().risk_limits
+    report = (check or run_check)(settings, 30.0, risk_limits)
+    if not report.ok:
+        return "IBKR check failed: " + "; ".join(report.problems)
+    if report.open_positions or report.open_orders:
+        return (
+            f"account not empty ({len(report.open_positions)} positions, "
+            f"{len(report.open_orders)} open orders)"
+        )
+    if release is None:
+        from flowforge.ops.auto_release import run as release
+    decision = release(risk_limits)
+    if decision.release or decision.reason == "kill switch already off":
+        return None
+    return f"kill switch on: {decision.reason}"
+
+
+def run_all(
+    settings: IbSettings, out: Path, seconds: float, check: Any = None, release: Any = None
+) -> list[DrillReport]:
+    """Every drill in DRILLS order, stopping at the first that fails or can't start."""
+    done: list[DrillReport] = []
+    for drill in DRILLS:
+        blocked = _ready(settings, check, release) if drill != "instruments" else None
+        if blocked:
+            rep = DrillReport(drill, time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+            rep.check("Ready to start", False, blocked)
+            done.append(rep.finish())
+            write_report(rep, out)
+            break
+        if drill == "instruments":
+            rep, records = run_instruments(settings), []
+        elif drill in ("round-trip", "stop"):
+            rep, records = run_order_drill(settings, drill, seconds)
+        else:
+            rep, records = run_crash_then(settings, drill)
+        print(f"report: {write_report(rep, out, records)}")
+        done.append(rep)
+        if not rep.passed:
+            break
+    if done and done[-1].passed and len(done) == len(DRILLS):
+        _ready(settings, check, release)  # the restart drill leaves the switch on; same rule
+    return done
+
+
 def main(argv: list[str] | None = None) -> int:
     from flowforge.ops.ib_paper_check import NotPaperError, settings_from_env
 
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("drill", choices=[*DRILLS, "_crash", "_observe"])
+    p.add_argument("drill", choices=[*DRILLS, "all", "_crash", "_observe"])
     p.add_argument("--seconds", type=float, default=600.0, help="give up after this long")
     p.add_argument("--out", type=Path, default=DrillPaths.reports)
     a = p.parse_args(argv)
@@ -544,6 +600,15 @@ def main(argv: list[str] | None = None) -> int:
     if a.drill in ("_crash", "_observe"):  # steps run as child processes by takeover/restart
         run_order_drill(settings, "crash" if a.drill == "_crash" else "observe", a.seconds)
         return 0  # the crash step only gets here if it never crashed
+    if a.drill == "all":
+        reps = run_all(settings, a.out, a.seconds)
+        for rep in reps:
+            print(f"{rep.drill}: {'PASS' if rep.passed else 'FAIL'}")
+        ok = len(reps) == len(DRILLS) and all(r.passed for r in reps)
+        print("All drills passed." if ok else "Drills stopped: read the last report.")
+        if ok:  # the morning script runs the drills until this file exists
+            (a.out / PASSED_FILE).write_text(json.dumps({"passed_at": reps[-1].started}))
+        return 0 if ok else 1
     records: list[dict] = []
     if a.drill == "instruments":
         rep = run_instruments(settings)

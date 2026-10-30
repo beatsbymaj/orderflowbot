@@ -42,6 +42,10 @@ docker compose run --rm riskctl release
 It asks you to type `yes`. Trading stays stopped for the rest of today and starts again the
 next trading day.
 
+**Automatic (paper, ADR-0017):** if the trading program, the watchdog or a drill turned it on,
+the morning task (docs/runbooks/morning.md) turns it off by itself once IBKR shows no shares
+and no orders. If **you** turned it on (here or on the dashboard), only you turn it off.
+
 ## After a weekly loss halt
 If the account drops 5% from its best point this week, FlowForge sells everything and stops
 until you say so. When you've looked at what happened:

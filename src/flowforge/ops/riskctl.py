@@ -6,7 +6,8 @@
     python -m flowforge.ops.riskctl reenable      # clears a weekly-drawdown halt
 
 `kill` can be run by anyone at any time. `release` and `reenable` are for the operator
-only and ask for the word "yes" first (or --yes). Releasing the switch does not restart
+only and ask for the word "yes" first (or --yes). ops.auto_release can also turn the switch
+off, under its own rule (ADR-0017). Releasing the switch does not restart
 trading the same day: the day stays halted. Nothing here changes risk limits.
 """
 
